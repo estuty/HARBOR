@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Harbor</title>
+<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="login-body">
+<form class="login card" method="post" action="/login">
+  <div class="brand big">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 10v17M9 15h14M5 19c1 5 5.5 8 11 8s10-3 11-8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <span>Harbor</span>
+  </div>
+  {% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Username<input name="username" autocomplete="username" required autofocus></label>
+  <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+  <button class="btn primary wide">Sign in</button>
+  {% if dry_run %}<p class="muted small center">Dry-run mode: no changes are made to this server.</p>{% endif %}
+</form>
+</body>
+</html>

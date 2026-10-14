@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Harbor documentation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Install Harbor, secure the server, deploy from Git, move from cPanel, use the API, and find every file Harbor manages.">
+<meta name="theme-color" content="#0a1f2c">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Harbor">
+<meta property="og:title" content="Harbor documentation">
+<meta property="og:description" content="Installation, security, Git deploys, moving from cPanel, API and server layout.">
+<meta property="og:image" content="assets/og.png">
+<link rel="preload" href="assets/fonts/schibsted-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/public-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav" id="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#12303a"/><g fill="none" stroke="#5fd3c0" stroke-width="2.4" stroke-linecap="round"><circle cx="16" cy="8" r="2.8"/><path d="M16 11v15M10 15h12M6.5 19c1 4.5 4.8 7 9.5 7s8.5-2.5 9.5-7"/></g></svg>Harbor</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="index.html#product">Product</a></li>
+      <li><a href="index.html#features">Features</a></li>
+      <li><a href="index.html#cpanel">From cPanel</a></li>
+      <li><a href="index.html#how">How it works</a></li>
+      <li><a href="docs.html" aria-current="page">Documentation</a></li>
+      <li><a href="https://github.com/estuty/HARBOR" rel="noopener">GitHub</a></li>
+    </ul>
+    <a class="btn btn-primary nav-cta" href="#install">Get started</a>
+  </div>
+</header>
+<div class="wrap docs-layout">
+  <nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p>
+    <a href="#features-mapped-to-cpanel">Features, mapped to cPanel</a><a href="#install">Install</a><a class="sub" href="#before-you-rely-on-email">Before you rely on email</a><a class="sub" href="#hosting-dns-here">Hosting DNS here</a><a href="#after-installing-secure-the-server">After installing: secure the server</a><a href="#deploying-from-git">Deploying from Git</a><a href="#moving-from-cpanel">Moving from cPanel</a><a href="#updating">Updating</a><a href="#ports">Ports</a><a href="#api">API</a><a href="#security-model">Security model</a><a href="#files-on-the-server">Files on the server</a><a href="#development">Development</a><a href="#not-included-yet">Not included yet</a>
+  </nav>
+  <main class="doc" id="main">
+    <h1>Harbor documentation</h1>
+    <div class="doc-intro"><p>A self-hosted alternative to cPanel for one Linux server: websites, email, DNS,
+databases, security and backups in one panel. One install script, no licence fees.</p>
+<p>Stack: <strong>Nginx + PHP-FPM + MariaDB</strong>, <strong>Postfix + Dovecot + Rspamd</strong> (mail), <strong>BIND 9</strong> (DNS),
+<strong>ModSecurity + OWASP CRS</strong> (firewall), <strong>Roundcube</strong> (webmail), <strong>WP-CLI</strong> (WordPress).</p></div>
+    <div class="doc-meta">
+      <a class="btn btn-solid" href="#install">Install</a>
+      <a class="btn btn-line" href="https://github.com/estuty/HARBOR" rel="noopener">Source on GitHub</a>
+    </div>
+    <h2 id="features-mapped-to-cpanel">Features, mapped to cPanel</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>cPanel</th>
+<th>Harbor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Domains / Addon / Subdomains</td>
+<td><strong>Sites</strong>: Linux user, web root, isolated PHP-FPM pool, nginx vhost, DNS zone in one step</td>
+</tr>
+<tr>
+<td>SSL/TLS</td>
+<td>Free Let's Encrypt certificates, auto-renewal, HTTP→HTTPS, HSTS</td>
+</tr>
+<tr>
+<td>Redirects</td>
+<td>Exact or "path and everything below" redirects, 301/302, www ↔ bare preferred address</td>
+</tr>
+<tr>
+<td>Zone Editor</td>
+<td><strong>DNS</strong>: A, AAAA, CNAME, MX, TXT, SRV, CAA, NS; default web/mail/SPF/DMARC/CAA records; glue for in-zone name servers</td>
+</tr>
+<tr>
+<td>Dynamic DNS</td>
+<td>Per-host update keys; routers or a cron job call an update URL</td>
+</tr>
+<tr>
+<td>Email Accounts</td>
+<td>Mailboxes with quotas, usage, password reset, login suspension</td>
+</tr>
+<tr>
+<td>Forwarders / Default Address</td>
+<td>Forwarders (keep a copy when forwarding a real mailbox) and catch-all</td>
+</tr>
+<tr>
+<td>Autoresponders</td>
+<td>Sieve vacation replies with date range and reply interval</td>
+</tr>
+<tr>
+<td>Email Deliverability</td>
+<td>DKIM keys generated and signed automatically (Rspamd); DNS records published or shown to copy</td>
+</tr>
+<tr>
+<td>Spam Filters</td>
+<td>Rspamd; spam is filed into Junk</td>
+</tr>
+<tr>
+<td>Webmail</td>
+<td>Roundcube on port 2096</td>
+</tr>
+<tr>
+<td>MySQL Databases / Wizard</td>
+<td>Database + user in one click; password shown once; sizes</td>
+</tr>
+<tr>
+<td>File Manager</td>
+<td>Browse, drag-and-drop upload, edit, rename, delete, download; locked to the site</td>
+</tr>
+<tr>
+<td>FTP Accounts</td>
+<td><strong>SFTP</strong> per site, chrooted to the site folder</td>
+</tr>
+<tr>
+<td>Directory Privacy</td>
+<td>Password-protected folders (including PHP inside them)</td>
+</tr>
+<tr>
+<td>IP Blocker</td>
+<td>Single IPs or CIDR ranges per site; one-click block from stats and firewall hits</td>
+</tr>
+<tr>
+<td>Hotlink Protection</td>
+<td>File types + allowed sites</td>
+</tr>
+<tr>
+<td>ModSecurity</td>
+<td>Per site: Off / Detect only / Block; disable rules; recent hits with one-click rule disable</td>
+</tr>
+<tr>
+<td>MultiPHP Manager / INI Editor</td>
+<td>PHP version per site; memory, upload size, timeouts, time zone, etc.</td>
+</tr>
+<tr>
+<td>Error Pages</td>
+<td>Custom 400/401/403/404/500/502/503 pages</td>
+</tr>
+<tr>
+<td>Indexes</td>
+<td>Directory listing per folder</td>
+</tr>
+<tr>
+<td>Cron Jobs</td>
+<td>Per-site, run as the site user, pause/resume</td>
+</tr>
+<tr>
+<td>Backup / Backup Wizard</td>
+<td>Full backups (files + databases), daily/weekly schedule with retention, upload, restore files and/or databases</td>
+</tr>
+<tr>
+<td>Metrics (Awstats, Bandwidth)</td>
+<td>Visitors, page views, bandwidth per day, top pages, referrers, busiest IPs</td>
+</tr>
+<tr>
+<td>Application Manager</td>
+<td>One-click WordPress (root or subfolder), "Update all", remove</td>
+</tr>
+<tr>
+<td>Site Publisher</td>
+<td>Three templates (Business, Personal, Coming soon) filled from a form</td>
+</tr>
+<tr>
+<td>Team users / Manage API Tokens</td>
+<td>Admins and team users with per-site access; API tokens with the owner's permissions; JSON API</td>
+</tr>
+<tr>
+<td>Two-factor authentication</td>
+<td>Authenticator-app codes + one-time recovery codes; can be required for all admins</td>
+</tr>
+<tr>
+<td>cPHulk brute-force protection</td>
+<td><strong>fail2ban</strong> for SSH, panel, SMTP/IMAP, webmail and protected folders; ban/unban in Security</td>
+</tr>
+<tr>
+<td>Host access control</td>
+<td>Panel (and optionally webmail) limited to your IP addresses</td>
+</tr>
+<tr>
+<td>Backup to remote destinations</td>
+<td>Offsite copies to any S3-compatible storage (Spaces, B2, S3, Wasabi, R2), retention, restore from offsite</td>
+</tr>
+<tr>
+<td>Contact information / notifications</td>
+<td>Alerts by email (any SMTP) or webhook (Slack, Discord, ntfy): disk, services, certificates, sites down, stuck mail, backups, disk allowance</td>
+</tr>
+<tr>
+<td>Resource usage limits (CloudLinux LVE)</td>
+<td>Per-site CPU, memory and PHP-process limits enforced by systemd cgroups; disk allowance</td>
+</tr>
+<tr>
+<td>Updates</td>
+<td>Upload or link a new version; automatic rollback if it fails; roll back to saved versions</td>
+</tr>
+<tr>
+<td>Audit log</td>
+<td>Activity page records every change</td>
+</tr>
+<tr>
+<td>Git Version Control</td>
+<td><strong>Deploy</strong> tab per site: connect a GitHub/GitLab/Gitea/Bitbucket repository (deploy key for private ones), build command run as the site user, kept paths (uploads, <code>.env</code>), push-to-deploy webhook, deploy history with one-click rollback, API trigger for CI</td>
+</tr>
+<tr>
+<td>Transfer Tool / Restore a full backup</td>
+<td><strong>Move from cPanel</strong>: upload (any size), link or scp a cPanel account backup; review the plan; one click brings sites, files, databases (users keep their passwords), mailboxes (keep passwords, all mail and folders), forwarders, catch-all, autoresponders, DNS zones (repointed here) and cron jobs</td>
+</tr>
+<tr>
+<td>(none)</td>
+<td><strong>Health</strong>: plain-English checks of what the internet sees: DNS pointing elsewhere, MX vs. mailboxes, SPF/DKIM/DMARC, reverse DNS, blocked port 25, blocklists, certificates, slow or broken home pages, PHP errors, missing 2FA/backups/alerts, each with the exact fix</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="install">Install</h2>
+<p>On a <strong>fresh</strong> Ubuntu 24.04 / 22.04 or Debian 12 VPS:</p>
+<pre><code class="language-bash">tar xzf harbor.tar.gz &amp;&amp; cd harbor
+sudo ./install.sh --hostname server1.example.com --email you@example.com
+</code></pre>
+<p>Open <code>https://SERVER-IP:8443</code> (self-signed certificate warning the first time) and sign in with
+the printed password. Then in <strong>Settings</strong>: confirm the host name and IP, set your name servers,
+and click <strong>Get certificate</strong> to give the panel, webmail and mail server a trusted certificate.</p>
+<p>Options: <code>--admin NAME</code>, <code>--port N</code>, <code>--extra-php "8.2 8.1"</code> (adds the Ondřej Surý PHP
+repository), <code>--no-mail</code>, <code>--no-dns</code>, <code>--no-modsec</code>, <code>--no-webmail</code>.
+Re-running the installer upgrades Harbor in place and keeps all data.</p>
+<h3 id="before-you-rely-on-email">Before you rely on email</h3>
+<ul>
+<li>Ask your VPS provider to open outbound port 25 (many block it) and to set <strong>reverse DNS</strong>
+  (PTR) for the server IP to your host name.</li>
+<li>The host name needs an A record pointing at the server.</li>
+<li>If DNS for a domain is hosted elsewhere, add the MX/SPF/DKIM/DMARC records shown on its
+  Email tab.</li>
+</ul>
+<h3 id="hosting-dns-here">Hosting DNS here</h3>
+<p>Create "glue" records <code>ns1.yourdomain.com</code> / <code>ns2.yourdomain.com</code> → server IP at your registrar,
+set them in Settings, and use them as each domain's name servers. BIND runs authoritative-only
+(no open resolver). For real redundancy, add a secondary DNS provider later.</p>
+<h2 id="after-installing-secure-the-server">After installing: secure the server</h2>
+<ol>
+<li><strong>My account → Two-factor sign-in.</strong> Scan the QR code and save the recovery codes.</li>
+<li><strong>Security → Two-factor sign-in → Require for all admins.</strong></li>
+<li><strong>Security → Panel access.</strong> Add your own IP address(es). Locked out later?
+   <code>sudo /opt/harbor/venv/bin/python -m harbor allow-ip --clear</code></li>
+<li><strong>Settings → Offsite backups.</strong> Connect a private bucket, then turn on daily backups per site (Backups tab).</li>
+<li><strong>Settings → Alerts.</strong> Add your email and an SMTP server (outgoing port 25 is often blocked), or a
+   Slack/Discord webhook, and click <em>Send test alert</em>.</li>
+<li><strong>Settings → General → Default limits</strong>, and per site on its Overview tab.</li>
+</ol>
+<p>Each site's PHP now runs as its own service, <code>harbor-php-&lt;site&gt;</code> (<code>systemctl status harbor-php-site1</code>),
+so limits are enforced by the kernel and one site can't starve the others. Upgrading from 0.2 moves
+existing sites over automatically.</p>
+<h2 id="deploying-from-git">Deploying from Git</h2>
+<p>Each site has a <strong>Deploy</strong> tab.</p>
+<ol>
+<li><strong>Connect</strong> the repository address and branch. Public repositories work with their <code>https://</code> address; for a
+   private one use the SSH address (<code>git@github.com:owner/repo.git</code>) and add the <strong>deploy key</strong> Harbor shows as a
+   read-only key in the repository (GitHub: Settings → Deploy keys). <strong>Check connection</strong> confirms it.</li>
+<li>Optional: a <strong>build command</strong> (<code>composer install --no-dev</code>, <code>npm ci &amp;&amp; npm run build</code>) that runs in the
+   repository as the site's own user, a <strong>folder to publish</strong> (e.g. <code>dist</code>), an <strong>after-deploy command</strong> that runs in
+   the live folder (<code>php artisan migrate --force</code>), and <strong>paths to keep</strong> on the live site (<code>wp-content/uploads/</code>, <code>.env</code>).</li>
+<li><strong>Deploy now.</strong> Harbor fetches the branch, builds, then copies the result into the site with rsync. If the fetch or
+   build fails, the live site isn't touched. The first deploy backs up the current files and databases first.</li>
+<li><strong>Deploy on push:</strong> add the webhook address shown on the tab to the repository (JSON, push events). Pushes to other
+   branches are ignored; GitHub/Gitea signatures and GitLab tokens are checked when sent. The webhook path <code>/hooks/</code>
+   stays reachable when the panel is limited to your IP addresses.</li>
+<li><strong>Roll back</strong> with <em>Redeploy this version</em> on any earlier deploy. From CI:
+   <code>curl -X POST -H "Authorization: Bearer hbr_…" https://server:8443/api/v1/sites/ID/deploy</code>.</li>
+</ol>
+<p>The working copy lives in <code>/srv/harbor/sites/&lt;domain&gt;/git/</code> (outside the web root). Disconnecting deletes it and the
+key; the live files stay.</p>
+<h2 id="moving-from-cpanel">Moving from cPanel</h2>
+<ol>
+<li>On the old host: cPanel → <strong>Backup → Download a Full Account Backup</strong> (destination: Home Directory).
+   On WHM, a <code>cpmove-USER.tar.gz</code> from the Transfer Tool or <code>pkgacct</code> works too.</li>
+<li>Harbor → <strong>Move from cPanel</strong>: drop the file on the page, paste a download link, or copy it to
+   <code>/srv/harbor/imports/</code> with scp (best for many-GB backups) and click <em>Use this</em>.</li>
+<li>Review the plan (domains, databases, mailboxes, DNS, cron), untick what you don't want, <strong>Import now</strong>.</li>
+<li>Follow the <em>Next steps</em> on the result page: preview with a hosts-file line, point DNS, turn on HTTPS,
+   move MX last. The <strong>Health</strong> page then tells you what still points at the old host.</li>
+</ol>
+<p>What carries over: main, addon, sub and parked domains (parked ones redirect to the main domain); files with
+<code>/home/USER</code> paths rewritten in configs; databases and their users with the same passwords (MySQL 8
+<code>caching_sha2</code> users get a new password, written into WordPress/Joomla/Laravel settings); mailboxes with their
+original passwords, quotas, every folder and read/unread state; forwarders, catch-all, autoresponders; DNS zones
+without cPanel-only records and with the old IP replaced; cron jobs with new paths and PHP. Not carried over:
+SSL certificates (re-issued free), FTP accounts (use SFTP), mail filters, statistics, and <code>.htaccess</code> rules
+(nginx doesn't read them: the summary lists sites with custom rules to recreate under Redirects/Security).
+The old account is never touched.</p>
+<h2 id="updating">Updating</h2>
+<p><strong>Settings → Updates</strong>: upload the new <code>harbor.tar.gz</code> (or paste a link). Harbor saves the current
+code and database, installs, restarts and checks that the panel answers. If anything fails it puts the
+previous version back by itself. From SSH: <code>sudo /opt/harbor/venv/bin/python -m harbor update harbor.tar.gz</code>.</p>
+<p>If the update notes say a release changes server components, also run
+<code>sudo bash /opt/harbor/source/install.sh</code> once (safe to re-run; keeps data and settings).</p>
+<h2 id="ports">Ports</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>80, 443</td>
+<td>Websites</td>
+</tr>
+<tr>
+<td>8443</td>
+<td>Panel</td>
+</tr>
+<tr>
+<td>2096</td>
+<td>Webmail</td>
+</tr>
+<tr>
+<td>25, 465, 587</td>
+<td>SMTP (inbound, submission SSL, submission STARTTLS)</td>
+</tr>
+<tr>
+<td>993, 995 (143, 110)</td>
+<td>IMAP, POP3</td>
+</tr>
+<tr>
+<td>53</td>
+<td>DNS</td>
+</tr>
+<tr>
+<td>22</td>
+<td>SSH / SFTP</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="api">API</h2>
+<p>Create a token under your account (top-left user name → API tokens):</p>
+<pre><code class="language-bash">curl -H &quot;Authorization: Bearer hbr_…&quot; https://server:8443/api/v1/sites
+curl -X POST -H &quot;Authorization: Bearer hbr_…&quot; -H &quot;Content-Type: application/json&quot; \
+     -d '{&quot;domain&quot;:&quot;example.com&quot;}' https://server:8443/api/v1/sites
+</code></pre>
+<p>Endpoints: sites (list/create/show/HTTPS), databases, backups, mailboxes, DNS records, Git deploys
+(<code>POST /api/v1/sites/ID/deploy</code>, <code>GET /api/v1/sites/ID/deployments</code>).
+The account page lists them all.</p>
+<h2 id="security-model">Security model</h2>
+<ul>
+<li>Every site runs PHP as its own Linux user with <code>open_basedir</code>; one compromised site can't read
+  another's files. SFTP users are chrooted and have no shell.</li>
+<li>The panel listens on <code>127.0.0.1:8090</code> behind nginx TLS. Sessions are signed, Secure, HttpOnly,
+  SameSite=Strict; all forms have CSRF tokens; logins are throttled; strict CSP.</li>
+<li>System commands run as argument lists (never through a shell). Every value written to a
+  config file goes through strict validation, so input can't inject directives.</li>
+<li>Every nginx, PHP-FPM, BIND and Postfix change is checked (<code>nginx -t</code>, <code>php-fpm -t</code>,
+  <code>named-checkzone</code>, <code>postmap</code>) and rolled back if rejected.</li>
+<li>Mail: no open relay; authenticated senders can only send as their own address; DKIM on all
+  outgoing mail.</li>
+<li>The panel itself runs as root (it creates users and manages services). If you can, allow
+  port 8443 only from your own IPs: <code>ufw allow from 203.0.113.4 to any port 8443</code>.</li>
+</ul>
+<h2 id="files-on-the-server">Files on the server</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/srv/harbor/sites/&lt;domain&gt;/{public,logs,tmp,errors}</code></td>
+<td>Site files</td>
+</tr>
+<tr>
+<td><code>/srv/harbor/backups/&lt;domain&gt;/</code></td>
+<td>Backups</td>
+</tr>
+<tr>
+<td><code>/srv/harbor/imports/</code></td>
+<td>cPanel backups to import (delete them after moving)</td>
+</tr>
+<tr>
+<td><code>/srv/harbor/sites/&lt;domain&gt;/git/</code></td>
+<td>Git deploy working copy and deploy key</td>
+</tr>
+<tr>
+<td><code>/var/mail/vhosts/&lt;domain&gt;/&lt;user&gt;/</code></td>
+<td>Mailboxes (Maildir)</td>
+</tr>
+<tr>
+<td><code>/etc/nginx/sites-available/harbor-*.conf</code></td>
+<td>Generated vhosts</td>
+</tr>
+<tr>
+<td><code>/etc/php/&lt;ver&gt;/fpm/pool.d/harbor-*.conf</code></td>
+<td>Generated PHP pools</td>
+</tr>
+<tr>
+<td><code>/var/lib/bind/harbor/db.&lt;domain&gt;</code></td>
+<td>Generated DNS zones</td>
+</tr>
+<tr>
+<td><code>/etc/postfix/harbor/</code>, <code>/etc/dovecot/harbor-users</code></td>
+<td>Generated mail maps</td>
+</tr>
+<tr>
+<td><code>/var/lib/harbor/harbor.db</code></td>
+<td>Panel database (SQLite)</td>
+</tr>
+<tr>
+<td><code>/etc/harbor/</code></td>
+<td>Secret key, env, panel TLS</td>
+</tr>
+</tbody>
+</table></div>
+<p>Operate: <code>systemctl status harbor</code>, <code>journalctl -u harbor -f</code>.</p>
+<p>Command line (<code>cd /opt/harbor &amp;&amp; sudo venv/bin/python -m harbor …</code>):</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create-admin NAME</code></td>
+<td>Create an admin or reset a password</td>
+</tr>
+<tr>
+<td><code>disable-2fa NAME</code></td>
+<td>Remove two-factor sign-in (lost phone and recovery codes)</td>
+</tr>
+<tr>
+<td><code>allow-ip --clear</code> / <code>--add IP</code></td>
+<td>Fix a panel lockout</td>
+</tr>
+<tr>
+<td><code>reconcile</code></td>
+<td>Rewrite every site's nginx/PHP config from the panel database</td>
+</tr>
+<tr>
+<td><code>update FILE.tar.gz</code></td>
+<td>Update with automatic rollback</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="development">Development</h2>
+<pre><code class="language-bash">pip install -r requirements.txt pytest httpx
+python -m pytest -q tests                      # dry-run tests: no system changes
+HARBOR_DRY_RUN=1 python -m harbor create-admin admin --password 'long-password-here'
+HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
+</code></pre>
+<p>Dry-run mode sandboxes every path and logs commands instead of running them.
+<code>tests/integration/run_live.py</code> (73 checks: web, PHP isolation, DNS, mail delivery/DKIM/relay
+protection, autoresponders, SFTP chroot, ModSecurity, backups/restore, team users, API) and
+<code>tests/integration/run_stage1.py</code> (38 checks: per-site PHP services and limits, migration from 0.2,
+2FA, fail2ban bans, panel allowlist, offsite backup and restore, alerts, update and rollback) and
+<code>tests/integration/run_stage2.py</code> (46 checks: importing a realistic cPanel account in both backup
+layouts, then checking sites, original database and mailbox passwords, old mail and folders, forwarders,
+catch-all, autoresponder, DNS, cron, health pages) and <code>tests/integration/run_deploy.py</code> (32 checks: Git deploy
+from a private SSH repository with a deploy key, build as the site user, kept paths, push webhook through nginx past
+the panel allowlist, failed build leaves the site alone, rollback, disconnect) exercise a real server end to end.</p>
+<h2 id="not-included-yet">Not included yet</h2>
+<ul>
+<li>Staging sites, Node.js/Python apps</li>
+<li>DNSSEC signing and secondary DNS; reseller packages</li>
+<li>Disk limits are soft (alerts + upload block), not filesystem quotas; cron jobs aren't covered by CPU/memory limits</li>
+</ul>
+    <p class="caption">This page is generated from the project's README.md.</p>
+  </main>
+</div>
+<footer class="footer">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#12303a"/><g fill="none" stroke="#5fd3c0" stroke-width="2.4" stroke-linecap="round"><circle cx="16" cy="8" r="2.8"/><path d="M16 11v15M10 15h12M6.5 19c1 4.5 4.8 7 9.5 7s8.5-2.5 9.5-7"/></g></svg>Harbor</a>
+      <p>A self-hosted control panel for one Linux server: websites, email, DNS, databases, backups and security in one place.</p>
+    </div>
+    <nav aria-label="Product"><h2>Product</h2><ul>
+      <li><a href="index.html#product">Screens</a></li><li><a href="index.html#features">Features</a></li>
+      <li><a href="index.html#cpanel">Coming from cPanel</a></li><li><a href="index.html#technical">Under the hood</a></li></ul></nav>
+    <nav aria-label="Documentation"><h2>Documentation</h2><ul>
+      <li><a href="#install">Install</a></li><li><a href="#deploying-from-git">Deploying from Git</a></li>
+      <li><a href="#api">API</a></li><li><a href="https://github.com/estuty/HARBOR" rel="noopener">GitHub repository</a></li></ul></nav>
+    <p class="fine">Harbor documentation, built from README.md.</p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Advanced · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<section class="card">
+  <h2>Custom error pages</h2>
+  <p class="muted">Show your own page instead of the server's default when something goes wrong.</p>
+  <nav class="seg">
+    {% for c, label in codes.items() %}
+    <a href="/sites/{{ site.id }}/advanced?code={{ c }}" class="{{ 'on' if c == code }}">{{ c }}{% if c in enabled %} ●{% endif %}</a>
+    {% endfor %}
+  </nav>
+  <form method="post" action="/sites/{{ site.id }}/advanced/errors" class="stack editor" data-editor>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="code" value="{{ code }}">
+    <div class="row between">
+      <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if code in enabled }}> Use this page for {{ code }} {{ codes[code] }}</label>
+      <span class="muted small" data-dirty hidden>Unsaved changes</span>
+    </div>
+    <textarea name="content" spellcheck="false" wrap="off" class="short" aria-label="Page HTML">{{ content }}</textarea>
+    <div><button class="btn primary">Save {{ code }} page</button></div>
+  </form>
+</section>
+
+<section class="card" id="indexes">
+  <h2>Directory listing <span class="muted small">(Indexes)</span></h2>
+  <p class="muted">Show a file list for folders that don't have an index page, e.g. a downloads folder. Off everywhere by default.</p>
+  {% if indexes %}
+  <ul class="chips">
+    {% for p in indexes %}
+    <li><code>{{ p }}</code>
+      <form method="post" action="/sites/{{ site.id }}/advanced/indexes"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="path" value="{{ p }}"><input type="hidden" name="enabled" value="0"><button class="linkish" aria-label="Turn off for {{ p }}">×</button></form></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="/sites/{{ site.id }}/advanced/indexes" class="row narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="enabled" value="1">
+    <input name="path" placeholder="/downloads/" required spellcheck="false" aria-label="Folder">
+    <button class="btn">Turn on listing</button>
+  </form>
+</section>
+{% endblock %}

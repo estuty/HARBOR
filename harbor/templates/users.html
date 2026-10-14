@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Users</h1><p class="muted">Admins manage the whole server. Team users only see the sites you give them, and can't create or delete sites.</p></div></header>
+
+<section class="card flush">
+<table class="table">
+  <thead><tr><th>User</th><th>Role & site access</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td class="nowrap"><strong>{{ u.username }}</strong>
+      {% if u.totp_enabled %}<span class="pill ok" title="Two-factor sign-in is on">2FA</span>{% else %}<span class="pill warn" title="Two-factor sign-in is off">No 2FA</span>{% endif %}
+      <div class="muted small">since {{ u.created_at[:10] }}</div></td>
+    <td>
+      <form method="post" action="/users/{{ u.id }}/access" class="stack tight">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="row wrap">
+          <select name="role" aria-label="Role" data-role-select>
+            <option value="admin" {{ 'selected' if u.role == 'admin' }}>Admin</option>
+            <option value="user" {{ 'selected' if u.role == 'user' }}>Team user</option>
+          </select>
+          <button class="btn">Save</button>
+        </div>
+        {% if sites %}
+        <div class="checks {{ 'is-hidden' if u.role == 'admin' }}" data-site-checks>
+          {% for s in sites %}<label class="check small"><input type="checkbox" name="sites" value="{{ s.id }}" {{ 'checked' if s.id in assigned.get(u.id, ()) }}> {{ s.domain }}</label>{% endfor %}
+        </div>
+        {% endif %}
+      </form>
+    </td>
+    <td class="actions">
+      <details class="inline">
+        <summary class="linkish">Set password</summary>
+        <form method="post" action="/users/{{ u.id }}/password" class="pop row">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="password" name="password" placeholder="New password (12+)" required autocomplete="new-password" aria-label="New password">
+          <button class="btn">Save</button>
+        </form>
+      </details>
+      {% if u.totp_enabled %}<form method="post" action="/users/{{ u.id }}/2fa/reset" data-confirm="Remove two-factor sign-in for {{ u.username }}? Use this if they lost their phone and recovery codes."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">Reset 2FA</button></form>{% endif %}
+      <form method="post" action="/users/{{ u.id }}/delete" data-confirm="Delete user {{ u.username }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</section>
+
+<section class="card narrow">
+  <h2>Add a user</h2>
+  <form method="post" action="/users" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Username<input name="username" required autocomplete="off" spellcheck="false" placeholder="jane"></label>
+    <label>Password<input name="password" type="password" required autocomplete="new-password" placeholder="At least 12 characters"></label>
+    <label>Role
+      <select name="role" data-role-select>
+        <option value="user">Team user (selected sites only)</option>
+        <option value="admin">Admin (everything)</option>
+      </select>
+    </label>
+    {% if sites %}
+    <fieldset class="checks" data-site-checks>
+      <legend>Sites they can manage</legend>
+      {% for s in sites %}<label class="check"><input type="checkbox" name="sites" value="{{ s.id }}"> {{ s.domain }}</label>{% endfor %}
+    </fieldset>
+    {% endif %}
+    <div><button class="btn primary">Create user</button></div>
+  </form>
+</section>
+
+{% if tokens %}
+<section class="card">
+  <h2>All API tokens</h2>
+  <table class="table compact">
+    <tbody>
+    {% for t in tokens %}
+    <tr><td>{{ t.username }}</td><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td>
+      <td class="muted small">last used {{ t.last_used or 'never' }}</td>
+      <td class="actions"><form method="post" action="/account/tokens/{{ t.id }}/delete" data-confirm="Revoke this token?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Revoke</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

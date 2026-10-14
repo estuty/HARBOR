@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Import {{ plan.main_domain or '' }}{% endblock %}
+{% block content %}
+<header class="page-head"><div><p class="crumb"><a href="/import">Move from cPanel</a> /</p>
+  <h1>{{ plan.main_domain or 'Reading backup…' }}</h1>
+  <p class="muted">{{ row.source.rsplit('/', 1)[-1] }} · {{ row.size|filesize }}{% if plan.cpuser %} · cPanel user <code>{{ plan.cpuser }}</code>{% endif %}</p></div></header>
+
+{% if row.status in ('downloading', 'scanning', 'importing') %}
+<span data-import-poll="{{ row.id }}"></span>
+<section class="card">
+  <h2>{{ {'downloading': 'Downloading…', 'scanning': 'Reading the backup…', 'importing': 'Importing…'}[row.status] }}</h2>
+  <p class="muted">{{ 'This page updates by itself. You can leave it; the import keeps running.' }}</p>
+  <pre class="log" data-import-log>{{ log }}</pre>
+</section>
+
+{% elif row.status == 'failed' %}
+<section class="card"><h2>Couldn't read this backup</h2><pre class="log">{{ log }}</pre></section>
+
+{% elif row.status == 'ready' %}
+{% set free = plan.domains|rejectattr('name', 'in', plan.conflicts.domains)|list %}
+{% if not free %}
+<div class="callout" style="margin-bottom:16px"><strong>Every domain in this backup is already on this server.</strong>
+  It was probably imported before. To import it again, delete those sites first (each site → Overview → Delete site).</div>
+{% endif %}
+<form method="post" action="/import/{{ row.id }}/run" class="stack" data-busy="Starting…">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <section class="card flush">
+    <div class="card-head"><h2>Websites</h2></div>
+    <table class="table">
+      <thead><tr><th></th><th>Domain</th><th>Type</th><th>Folder on cPanel</th><th>PHP</th><th>Size</th></tr></thead>
+      <tbody>
+      {% for d in plan.domains %}
+      {% set taken = d.name in plan.conflicts.domains %}
+      <tr class="{{ 'dim' if taken }}">
+        <td><input type="checkbox" name="domains" value="{{ d.name }}" {{ 'checked' if not taken else 'disabled' }} aria-label="Import {{ d.name }}"></td>
+        <td><strong>{{ d.name }}</strong>{% if taken %} <span class="pill warn">already here</span>{% endif %}</td>
+        <td>{{ {'main':'Main domain','addon':'Addon domain','sub':'Subdomain','parked':'Alias (parked)'}[d.kind] }}</td>
+        <td><code class="small">{{ ('~/' ~ d.docroot) if d.docroot else '→ ' ~ plan.main_domain }}</code></td>
+        <td>{% if d.php %}{{ d.php }}{% if d.php not in php_versions %} <span class="pill warn" title="Not installed here; the default version will be used">not installed</span>{% endif %}{% else %}<span class="muted">default</span>{% endif %}</td>
+        <td class="muted">{{ d.size|filesize if d.size else '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="grid-2">
+    <div class="card stack">
+      <h2>What else to bring</h2>
+      <label class="check"><input type="checkbox" name="databases" value="1" {{ 'checked' if plan.databases }} {{ 'disabled' if not plan.databases }}>
+        <span><strong>{{ plan.databases|length }} database(s)</strong> <span class="muted small">{{ plan.sizes.databases|filesize }} · {{ plan.databases|map(attribute='name')|join(', ') }}</span></span></label>
+      {% set boxes = plan.mail|map(attribute='accounts')|map('length')|sum %}
+      <label class="check"><input type="checkbox" name="mail" value="1" {{ 'checked' if boxes and features.mail }} {{ 'disabled' if not boxes or not features.mail }}>
+        <span><strong>{{ boxes }} mailbox(es) with their mail</strong>, {{ plan.forwarders|length }} forwarder(s){{ ', catch-all' if plan.catchall }}{{ ', ' ~ plan.autoresponders|length ~ ' autoresponder(s)' if plan.autoresponders }} <span class="muted small">{{ plan.sizes.mail|filesize }}</span></span></label>
+      {% if boxes %}{% set addrs = [] %}{% for m in plan.mail %}{% for a in m.accounts %}{% set _ = addrs.append(a.local ~ '@' ~ m.domain) %}{% endfor %}{% endfor %}
+      <p class="muted small sub">{{ addrs[:12]|join(', ') }}{% if addrs|length > 12 %} and {{ addrs|length - 12 }} more{% endif %}</p>{% endif %}
+      <label class="check"><input type="checkbox" name="dns" value="1" {{ 'checked' if plan.zones and features.dns }} {{ 'disabled' if not plan.zones or not features.dns }}>
+        <span><strong>{{ plan.zones|length }} DNS zone(s)</strong> <span class="muted small">only needed if this server will host your DNS</span></span></label>
+      {% if plan.old_ip %}
+      <label class="check sub"><input type="checkbox" name="repoint" value="1" checked>
+        <span>Point records that used the old server ({{ plan.old_ip }}) to this server</span></label>
+      {% endif %}
+      <label class="check"><input type="checkbox" name="cron" value="1" {{ 'checked' if plan.cron }} {{ 'disabled' if not plan.cron }}>
+        <span><strong>{{ plan.cron|length }} cron job(s)</strong></span></label>
+    </div>
+    <div class="card">
+      <h2>Good to know</h2>
+      {% if plan.mail %}
+      <p class="small">Email accounts keep their passwords and all folders (Inbox, Sent, …). Mail only starts arriving here once the domain's MX record points to this server.</p>
+      {% endif %}
+      {% if plan.db_users %}<p class="small">Database users keep their passwords, so apps like WordPress connect without changes.</p>{% endif %}
+      {% if plan.notes or plan.warnings %}
+      <ul class="notes">{% for n in plan.warnings %}<li class="warn">{{ n }}</li>{% endfor %}{% for n in plan.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  </section>
+  <div class="row"><button class="btn primary" {{ 'disabled' if not free }}>Import now</button><span class="muted small">Your old cPanel account isn't touched. Nothing changes for visitors until you point the domains here.</span></div>
+</form>
+
+{% else %}
+{# done / failed_run #}
+<section class="card">
+  <h2>{% if row.status == 'done' %}<span class="pill ok">Imported</span>{% else %}<span class="pill bad">Stopped</span>{% endif %} {{ plan.main_domain }}</h2>
+  <dl class="counts five">
+    <div><dt>Sites</dt><dd>{{ result.sites|length if result.sites else 0 }}</dd></div>
+    <div><dt>Databases</dt><dd>{{ result.databases|length if result.databases else 0 }}</dd></div>
+    <div><dt>Mailboxes</dt><dd>{{ result.mailboxes or 0 }}</dd></div>
+    <div><dt>DNS zones</dt><dd>{{ result.zones|length if result.zones else 0 }}</dd></div>
+    <div><dt>Cron jobs</dt><dd>{{ result.cron or 0 }}</dd></div>
+  </dl>
+  {% if result.sites %}
+  <h3>Sites</h3>
+  <ul class="site-list">{% for s in result.sites %}<li><a href="/sites/{{ s.id }}">{{ s.domain }}</a><span class="muted">PHP {{ s.php }}</span></li>{% endfor %}</ul>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Next steps</h2>
+  <ol class="steps">
+    <li><strong>Preview before switching</strong> (optional): add the line <code>{{ server_ip }} {{ plan.main_domain }} www.{{ plan.main_domain }}</code> to your computer's hosts file, open the site, then remove the line.</li>
+    <li><strong>Point the domain here.</strong> At your DNS provider, change the <code>A</code> records for {{ plan.main_domain }} (and <code>www</code>) to this server's address{% if result.zones %}, or switch the domain's name servers to this server: the zone is ready{% endif %}.</li>
+    <li><strong>Turn on HTTPS</strong> on each site's Overview once the domain points here.</li>
+    {% if result.mailboxes %}<li><strong>Move email last:</strong> change the <code>MX</code> record to this server, then set up mail apps with this server's host name.</li>{% endif %}
+    <li><strong>Check everything</strong> on the <a href="/health">Health</a> page: it tells you in plain words what still points to the old host.</li>
+  </ol>
+</section>
+
+{% if result.warnings or result.notes or result.credentials_note %}
+<section class="card">
+  <h2>Check these</h2>
+  <ul class="notes">
+    {% for n in result.warnings %}<li class="warn">{{ n }}</li>{% endfor %}
+    {% if result.credentials_note %}<li class="warn">{{ result.credentials_note }}</li>{% endif %}
+    {% for n in result.notes %}<li>{{ n }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<details class="update card"><summary><strong>Import log</strong></summary><pre class="log">{{ log }}</pre></details>
+{% endif %}
+{% endblock %}

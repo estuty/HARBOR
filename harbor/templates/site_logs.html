@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Logs · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+<div class="toolbar">
+  <nav class="seg">
+    {% for key, fname in logs.items() %}
+    <a href="/sites/{{ site.id }}/logs?log={{ key }}&lines={{ lines }}" class="{{ 'on' if key == log }}">{{ {'access':'Access','error':'Nginx errors','php':'PHP errors'}[key] }}</a>
+    {% endfor %}
+  </nav>
+  <nav class="seg">
+    {% for n in [200, 500, 2000] %}<a href="/sites/{{ site.id }}/logs?log={{ log }}&lines={{ n }}" class="{{ 'on' if n == lines }}">{{ n }} lines</a>{% endfor %}
+  </nav>
+</div>
+<pre class="log" data-scroll-bottom>{{ content or 'This log is empty.' }}</pre>
+{% endblock %}

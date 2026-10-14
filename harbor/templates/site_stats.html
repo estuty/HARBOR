@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Stats · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<div class="toolbar">
+  <p class="muted">From this site's access logs. Bots and static files (images, CSS, JS) are excluded from page views.</p>
+  <nav class="seg">{% for n in [7, 30, 90] %}<a href="/sites/{{ site.id }}/stats?days={{ n }}" class="{{ 'on' if n == days }}">{{ n }} days</a>{% endfor %}</nav>
+</div>
+
+<section class="meters four">
+  <div class="card meter"><span class="label">Visitors</span><span class="value">{{ d.unique_visitors|num }}</span><span class="sub">unique IPs</span></div>
+  <div class="card meter"><span class="label">Page views</span><span class="value">{{ d.totals.pages|num }}</span><span class="sub">by people</span></div>
+  <div class="card meter"><span class="label">Requests</span><span class="value">{{ d.totals.requests|num }}</span><span class="sub">all files, incl. bots</span></div>
+  <div class="card meter"><span class="label">Bandwidth</span><span class="value">{{ d.totals.bytes|filesize }}</span><span class="sub">sent</span></div>
+</section>
+
+{% set n = d.series|length %}
+{% set w = 760 %}{% set h = 160 %}{% set bw = w / n %}
+<section class="card">
+  <h2>Visitors per day</h2>
+  <svg class="chart" viewBox="0 0 {{ w }} {{ h + 22 }}" role="img" aria-label="Visitors per day">
+    <line x1="0" y1="{{ h }}" x2="{{ w }}" y2="{{ h }}" class="axis"/>
+    {% for s in d.series %}
+    {% set bh = (s.visitors / peak * (h - 10)) if s.visitors else 0 %}
+    <rect x="{{ loop.index0 * bw + bw * 0.15 }}" y="{{ h - bh }}" width="{{ bw * 0.7 }}" height="{{ bh }}" rx="2" class="bar"><title>{{ s.day }}: {{ s.visitors }} visitors, {{ s.pages }} page views</title></rect>
+    {% endfor %}
+    <text x="0" y="{{ h + 16 }}" class="tick">{{ d.series[0].day }}</text>
+    <text x="{{ w }}" y="{{ h + 16 }}" class="tick end">{{ d.series[-1].day }}</text>
+    <text x="0" y="10" class="tick">{{ peak }}</text>
+  </svg>
+  <h3>Bandwidth per day</h3>
+  <svg class="chart small-chart" viewBox="0 0 {{ w }} 80" role="img" aria-label="Bandwidth per day">
+    <line x1="0" y1="78" x2="{{ w }}" y2="78" class="axis"/>
+    {% for s in d.series %}
+    {% set bh = (s.bytes / peak_bytes * 70) if s.bytes else 0 %}
+    <rect x="{{ loop.index0 * bw + bw * 0.15 }}" y="{{ 78 - bh }}" width="{{ bw * 0.7 }}" height="{{ bh }}" rx="2" class="bar alt"><title>{{ s.day }}: {{ s.bytes|filesize }}</title></rect>
+    {% endfor %}
+  </svg>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Top pages</h2>
+    {% if d.top_pages %}<ol class="ranked">{% for p, c in d.top_pages %}<li><code class="wrap">{{ p }}</code><span>{{ c|num }}</span></li>{% endfor %}</ol>
+    {% else %}<p class="muted">No page views yet.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Top referrers</h2>
+    {% if d.top_referrers %}<ol class="ranked">{% for r, c in d.top_referrers %}<li>{{ r }}<span>{{ c|num }}</span></li>{% endfor %}</ol>
+    {% else %}<p class="muted">No outside referrers yet.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Busiest IP addresses</h2>
+    {% if d.top_ips %}
+    <ol class="ranked">{% for ip, c in d.top_ips %}<li><code>{{ ip }}</code>
+      <span>{{ c|num }}
+      {% if ip in blocked %}<span class="pill bad">blocked</span>{% else %}
+      <form method="post" action="/sites/{{ site.id }}/security/ip" class="inline-form" data-confirm="Block {{ ip }} from this site?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ips" value="{{ ip }}"><button class="linkish danger">Block</button></form>{% endif %}
+      </span></li>{% endfor %}</ol>
+    {% else %}<p class="muted">No traffic yet.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Responses &amp; visitors</h2>
+    <dl class="kv">
+      {% for code, c in d.statuses %}<dt>{{ code }}</dt><dd>{{ c|num }}</dd>{% endfor %}
+      {% for a, c in d.agents %}<dt>{{ a }}</dt><dd>{{ c|num }} requests</dd>{% endfor %}
+    </dl>
+    {% if d.truncated %}<p class="muted small">Logs are very large; only the first 2 million lines were analysed.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

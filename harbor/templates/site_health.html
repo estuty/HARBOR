@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Health · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+<section class="card">
+  <div class="row between">
+    <h2>{% if summary.bad %}<span class="pill bad">{{ summary.bad }} problem{{ 's' if summary.bad > 1 }}</span>{% elif summary.warn %}<span class="pill warn">{{ summary.warn }} to improve</span>{% else %}<span class="pill ok">All good</span>{% endif %}</h2>
+    <a class="btn" href="/sites/{{ site.id }}/health">Check again</a>
+  </div>
+  <p class="muted small">Looked up through public DNS, the way visitors and other mail servers see {{ site.domain }}. DNS changes can take a few hours to show up everywhere.</p>
+  {% include "_checks.html" %}
+</section>
+{% endblock %}

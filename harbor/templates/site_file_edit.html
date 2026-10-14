@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ rel.split('/')[-1] }} · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+<form method="post" action="/sites/{{ site.id }}/files/save" class="editor" data-editor>
+  <div class="toolbar">
+    <div class="path">
+      <a href="/sites/{{ site.id }}/files?path=">{{ site.domain }}</a>
+      {% for name, p in crumbs[:-1] %} / <a href="/sites/{{ site.id }}/files?path={{ p|urlq }}">{{ name }}</a>{% endfor %}
+      / <strong>{{ crumbs[-1][0] }}</strong>
+    </div>
+    <div class="row">
+      <span class="muted small" data-dirty hidden>Unsaved changes</span>
+      <a class="btn" href="/sites/{{ site.id }}/files?path={{ '/'.join(rel.split('/')[:-1])|urlq }}">Close</a>
+      <button class="btn primary">Save <kbd>Ctrl S</kbd></button>
+    </div>
+  </div>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="path" value="{{ rel }}">
+  <textarea name="content" spellcheck="false" wrap="off" aria-label="File contents">{{ content }}</textarea>
+</form>
+{% endblock %}

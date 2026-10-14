@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Move from cPanel{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Move sites from cPanel</h1>
+  <p class="muted">Bring over websites, databases, email accounts with all their mail, forwarders, DNS records and cron jobs from a cPanel backup. Passwords keep working.</p></div></header>
+
+<section class="card">
+  <h2>1. Make a backup on the old host</h2>
+  <ol class="steps">
+    <li>Sign in to cPanel on your old host and open <strong>Backup</strong> (or <strong>Backup Wizard</strong>).</li>
+    <li>Click <strong>Download a Full Account Backup</strong>, choose <strong>Home Directory</strong> as the destination and generate it.</li>
+    <li>When the email arrives, download the <code>backup-….tar.gz</code> file. On WHM, a <code>cpmove-USER.tar.gz</code> from <em>Transfer Tool</em> or <code>pkgacct</code> works too.</li>
+  </ol>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>2. Give it to Harbor</h2>
+    <div class="stack">
+      <div class="dropzone-big" data-upload-zone>
+        <input type="file" accept=".gz,.tgz,.tar" data-upload-input hidden>
+        <p><strong>Drop the backup here</strong> or <button type="button" class="linkish" data-upload-pick>choose the file</button></p>
+        <p class="muted small">Any size. Large backups can take a while; keep this tab open.</p>
+        <div class="upload-progress" data-upload-progress hidden><progress max="100" value="0"></progress><span class="small" data-upload-label></span></div>
+        <input type="hidden" name="csrf" value="{{ csrf }}" data-upload-csrf>
+      </div>
+      <h3>Or from a link</h3>
+      <form method="post" action="/import/url" class="row">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input name="url" placeholder="https://old-host.example/backup-….tar.gz" required spellcheck="false" aria-label="Backup link">
+        <button class="btn">Fetch</button>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Or copy it to the server</h2>
+    <p class="muted">Best for very large backups. From your computer:</p>
+    <pre class="code wrap">scp backup-….tar.gz root@{{ request.url.hostname }}:{{ import_dir }}/</pre>
+    <p class="muted small">cPanel's Backup Wizard can also send the backup straight here: choose <em>Remote Server (SCP)</em>, this server's address, user <code>root</code>, folder <code>{{ import_dir }}</code>.</p>
+    {% if server_files %}
+    <ul class="site-list">
+      {% for f in server_files %}
+      <li><span><code class="small">{{ f.name }}</code> <span class="muted small">{{ f.size|filesize }}</span></span>
+        <form method="post" action="/import/server"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file" value="{{ f.name }}"><button class="btn">Use this</button></form></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">No backups in that folder yet.</p>{% endif %}
+  </div>
+</section>
+
+{% if items %}
+<section class="card">
+  <h2>Imports</h2>
+  <table class="table compact">
+    <tbody>
+    {% for i in items %}
+    <tr>
+      <td class="nowrap muted">{{ i.created_at }}</td>
+      <td><a href="/import/{{ i.id }}"><strong>{{ i.main or i.name }}</strong></a> <span class="muted small">{{ i.name }}</span></td>
+      <td>{% set labels = {'downloading':'Downloading','scanning':'Reading','ready':'Ready to import','importing':'Importing','done':'Imported','failed':'Couldn\'t read','failed_run':'Stopped'} %}
+        <span class="pill {{ 'ok' if i.status == 'done' else ('bad' if i.status in ('failed','failed_run') else 'warn') }}">{{ labels.get(i.status, i.status) }}</span></td>
+      <td class="actions">
+        {% if i.status not in ('scanning', 'importing', 'downloading') %}
+        <form method="post" action="/import/{{ i.id }}/delete" data-confirm="Remove this import from the list and delete the uploaded backup file? Imported sites stay."><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file" value="1"><button class="linkish danger">Remove</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

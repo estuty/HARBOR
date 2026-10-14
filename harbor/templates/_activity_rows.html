@@ -1,0 +1,9 @@
+{% if activity %}
+<table class="table compact">
+  <tbody>
+  {% for a in activity %}
+  <tr class="lvl-{{ a.level }}"><td class="nowrap muted">{{ a.ts }}</td><td class="nowrap">{{ a.actor }}</td><td>{{ a.message }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">Nothing yet.</p>{% endif %}

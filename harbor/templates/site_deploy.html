@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Deploy · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+{% macro fields(c, keep) %}
+  <label>Repository address
+    <input name="repo_url" value="{{ c.repo_url if c else '' }}" required spellcheck="false" autocomplete="off"
+           placeholder="https://github.com/owner/repo.git  or  git@github.com:owner/repo.git">
+  </label>
+  <div class="grid-2 tight">
+    <label>Branch<input name="branch" value="{{ c.branch if c else 'main' }}" required spellcheck="false" autocomplete="off"></label>
+    <label>Folder to publish <span class="muted small">(optional)</span>
+      <input name="subdir" value="{{ c.subdir if c else '' }}" spellcheck="false" autocomplete="off" placeholder="whole repository, or e.g. dist">
+    </label>
+  </div>
+  <label>Build command <span class="muted small">(optional, runs in the repository before publishing)</span>
+    <textarea name="build_cmd" rows="2" spellcheck="false" placeholder="composer install --no-dev   or   npm ci && npm run build">{{ c.build_cmd if c else '' }}</textarea>
+  </label>
+  <label>After-deploy command <span class="muted small">(optional, runs in the live folder)</span>
+    <textarea name="after_cmd" rows="2" spellcheck="false" placeholder="php artisan migrate --force">{{ c.after_cmd if c else '' }}</textarea>
+  </label>
+  <label>Keep these on the live site <span class="muted small">(one path per line, never overwritten or removed)</span>
+    <textarea name="keep_paths" rows="3" spellcheck="false">{{ keep }}</textarea>
+  </label>
+  <p class="muted small">Typical: <code>wp-content/uploads/</code>, <code>.env</code>, <code>storage/</code>. A trailing <code>/</code> means a folder.</p>
+  <label class="check"><input type="checkbox" name="delete_extra" value="1" {{ 'checked' if not c or c.delete_extra }}>
+    <span>Remove files from the live site that aren't in the repository (except the paths kept above)</span></label>
+  <label class="check"><input type="checkbox" name="auto_deploy" value="1" {{ 'checked' if not c or c.auto_deploy }}>
+    <span>Deploy automatically when the branch is pushed (needs the webhook below)</span></label>
+{% endmacro %}
+
+{% if not cfg %}
+{# ---------- not connected yet ---------- #}
+<section class="grid-2 deploy-intro">
+  <div class="card stack">
+    <h2>Deploy from Git</h2>
+    <form method="post" action="/sites/{{ site.id }}/deploy/connect" class="stack" data-busy="Connecting…">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {{ fields(None, keep) }}
+      <div><button class="btn primary">Connect repository</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><strong>Connect</strong> a repository and branch. Private repositories use a deploy key that Harbor creates for this site.</li>
+      <li><strong>Deploy</strong>: Harbor fetches the branch, runs your build as <code>{{ site.sysuser }}</code>, then copies the result into the live folder. If the build fails, the live site isn't touched.</li>
+      <li><strong>Push to deploy</strong>: add the webhook to GitHub, GitLab, Gitea or Bitbucket and every push to the branch goes live.</li>
+      <li><strong>Roll back</strong> to any earlier deploy with one click.</li>
+    </ol>
+    <p class="muted small">The first deploy replaces what's in the site folder, so Harbor backs up the current files and databases first.
+      Disk use: the repository copy is kept in <code>git/</code> next to the site's files.</p>
+  </div>
+</section>
+
+{% else %}
+{# ---------- connected ---------- #}
+{% if active %}<span data-deploy-poll="/sites/{{ site.id }}/deploy/{{ active.id }}/status"></span>{% endif %}
+
+<section class="card deploy-status">
+  <div class="row between">
+    <div class="stack tight">
+      <p class="muted small">Deploying <code>{{ cfg.branch }}</code> from <code class="wrap">{{ cfg.repo_url }}</code>{% if cfg.subdir %}, folder <code>{{ cfg.subdir }}</code>{% endif %}</p>
+      {% if live %}
+      <h2 class="live-line"><span class="pill ok">Live</span> <code>{{ live.commit_sha[:7] }}</code> {{ live.commit_msg }}</h2>
+      <p class="muted small">{{ live.commit_author }} · deployed {{ live.finished_at }} UTC by {{ live.actor }}{{ ' (push)' if live.trigger == 'push' else '' }}</p>
+      {% else %}
+      <h2 class="live-line">Not deployed yet</h2>
+      <p class="muted small">Click Deploy now to publish {{ cfg.branch }}.{% if cfg.delete_extra %} The current files are backed up first.{% endif %}</p>
+      {% endif %}
+    </div>
+    <div class="row">
+      <form method="post" action="/sites/{{ site.id }}/deploy/check" data-busy="Checking…"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Check connection</button></form>
+      <form method="post" action="/sites/{{ site.id }}/deploy/run" data-busy="Starting…"
+            {% if not live and cfg.delete_extra %}data-confirm="The first deploy replaces the files in the site folder with the repository (keeping the paths you listed). A backup is taken first. Deploy now?"{% endif %}>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn primary" {{ 'disabled' if active }}>{{ 'Deploying…' if active else 'Deploy now' }}</button>
+      </form>
+    </div>
+  </div>
+  {% if active %}
+  <h3>{{ 'Waiting for the previous deploy…' if active.status == 'queued' else 'Deploying' ~ (' ' ~ active.target_sha[:7] if active.target_sha else '') ~ '…' }}</h3>
+  <pre class="log" data-deploy-log aria-live="polite">{{ active.log or 'Starting…' }}</pre>
+  {% endif %}
+</section>
+
+<section class="card flush">
+  <div class="card-head"><h2>Deploys</h2></div>
+  {% if rows %}
+  <table class="table deploys">
+    <thead><tr><th>When</th><th>Version</th><th>Started by</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for d in rows %}
+    <tr>
+      <td class="nowrap">{{ d.created_at }}</td>
+      <td>{% if d.commit_sha %}<code>{{ d.commit_sha[:7] }}</code> {{ d.commit_msg }}<div class="muted small">{{ d.commit_author }}</div>
+          {% elif d.target_sha %}<code>{{ d.target_sha[:7] }}</code>{% else %}<span class="muted">{{ d.branch }}</span>{% endif %}</td>
+      <td>{{ {'manual': 'Deploy now', 'push': 'Git push', 'rollback': 'Redeploy', 'api': 'API'}.get(d.trigger, d.trigger) }}
+          <div class="muted small">{{ d.actor }}</div></td>
+      <td>
+        {% if d.status == 'done' %}<span class="pill ok">{{ 'Live' if live and d.id == live.id else 'Deployed' }}</span>
+        {% elif d.status == 'failed' %}<span class="pill bad">Failed</span>
+        {% elif d.status == 'running' %}<span class="pill warn">Running</span>
+        {% elif d.status == 'queued' %}<span class="pill warn">Queued</span>
+        {% else %}<span class="pill">Skipped</span>{% endif %}
+        {% if d.backup_id %}<div class="muted small"><a href="/sites/{{ site.id }}/backups">backup taken</a></div>{% endif %}
+      </td>
+      <td class="actions">
+        {% if d.status == 'done' and live and d.id != live.id and d.commit_sha != live.commit_sha %}
+        <form method="post" action="/sites/{{ site.id }}/deploy/{{ d.id }}/redeploy" data-confirm="Put version {{ d.commit_sha[:7] }} back on the live site?">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish" {{ 'disabled' if active }}>Redeploy this version</button></form>
+        {% endif %}
+        {% if d.log and d.status not in ('running', 'queued') %}
+        <details class="inline"><summary class="linkish">Log</summary><div class="pop wide"><pre class="log">{{ d.log }}</pre></div></details>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No deploys yet. Click <strong>Deploy now</strong> to publish {{ cfg.branch }}.</div>
+  {% endif %}
+</section>
+
+<section class="grid-2">
+  <div class="card stack">
+    <h2>Deploy key</h2>
+    <p class="muted small">Needed only for private repositories (use the <code>git@…</code> address). Add it as a <strong>read-only</strong> key:
+      GitHub → repository Settings → Deploy keys; GitLab → Settings → Repository → Deploy keys; Bitbucket → Repository settings → Access keys.</p>
+    <code class="wrap keybox">{{ key }}</code>
+    <div class="row">
+      <button type="button" class="copy btn" data-copy="{{ key }}">Copy key</button>
+      <form method="post" action="/sites/{{ site.id }}/deploy/key/rotate" data-confirm="Create a new key? The old one stops working here; replace it in the repository."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">New key</button></form>
+    </div>
+  </div>
+  <div class="card stack">
+    <h2>Deploy on push</h2>
+    <p class="muted small">Add a webhook to the repository with this address (content type <code>application/json</code>, push events).
+      Leave the secret empty, or set it to the last part of the address. Pushes to other branches are ignored.</p>
+    <code class="wrap keybox">{{ hook }}</code>
+    <div class="row">
+      <button type="button" class="copy btn" data-copy="{{ hook }}">Copy address</button>
+      <form method="post" action="/sites/{{ site.id }}/deploy/hook/rotate" data-confirm="Create a new webhook address? The current one stops working."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">New address</button></form>
+    </div>
+    {% if not trusted %}<p class="muted small">This server doesn't have a trusted certificate yet, so turn off SSL verification in the webhook settings, or get a certificate in Settings → General.</p>{% endif %}
+    {% if not cfg.auto_deploy %}<p class="muted small"><span class="pill warn">Off</span> Automatic deploys are turned off in the settings below.</p>{% endif %}
+    <p class="muted small">From CI or a script: <code class="wrap">curl -X POST -H "Authorization: Bearer YOUR_API_TOKEN" {{ hook.split('/hooks/')[0] }}/api/v1/sites/{{ site.id }}/deploy</code></p>
+  </div>
+</section>
+
+<details class="card">
+  <summary><strong>Deploy settings</strong></summary>
+  <form method="post" action="/sites/{{ site.id }}/deploy/settings" class="stack settings-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {{ fields(cfg, keep) }}
+    <div><button class="btn primary">Save settings</button></div>
+  </form>
+</details>
+
+<section class="card">
+  <h2>Disconnect</h2>
+  <p class="muted small">Stops deploying from Git and deletes the repository copy and deploy key on this server. The live site's files stay as they are.</p>
+  <form method="post" action="/sites/{{ site.id }}/deploy/disconnect" data-confirm="Disconnect {{ site.domain }} from {{ cfg.repo_url }}?">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger" {{ 'disabled' if active }}>Disconnect repository</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

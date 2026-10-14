@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Details</h2>
+    <dl class="kv">
+      <dt>Web root</dt><dd><code>{{ root }}/public</code></dd>
+      <dt>System user</dt><dd><code>{{ site.sysuser }}</code></dd>
+      <dt>PHP</dt><dd><a href="/sites/{{ site.id }}/php">{{ site.php_version }}</a></dd>
+      <dt>Disk usage</dt><dd>{{ usage|filesize }}</dd>
+      <dt>Databases</dt><dd><a href="/sites/{{ site.id }}/databases">{{ db_count }}</a></dd>
+      <dt>Cron jobs</dt><dd><a href="/sites/{{ site.id }}/cron">{{ cron_count }}</a></dd>
+      {% if features.mail %}<dt>Email</dt><dd><a href="/sites/{{ site.id }}/mail">{{ 'On' if mail else 'Off' }}</a></dd>{% endif %}
+      {% if features.dns %}<dt>DNS zone</dt><dd>{% if zone %}<a href="/dns/{{ zone.id }}">Hosted here</a>{% else %}<span class="muted">External</span>{% endif %}</dd>{% endif %}
+      {% if apps %}<dt>Apps</dt><dd>{% for a in apps %}<a href="/sites/{{ site.id }}/apps">{{ a.app|capitalize }} at {{ a.path }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+      <dt>Created</dt><dd>{{ site.created_at }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>HTTPS</h2>
+    {% if site.ssl %}
+      <p><span class="pill ok">On</span> Let's Encrypt certificate, renewed automatically. HTTP redirects to HTTPS.</p>
+      <form method="post" action="/sites/{{ site.id }}/ssl/disable" data-confirm="Turn off HTTPS for {{ site.domain }}?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Turn off HTTPS</button>
+      </form>
+    {% else %}
+      <p class="muted">Before enabling, make sure <code>{{ site.domain }}</code>{% if site.include_www %} and <code>www.{{ site.domain }}</code>{% endif %} point to this server's IP address.</p>
+      <form method="post" action="/sites/{{ site.id }}/ssl/enable" data-busy="Requesting certificate…">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary">Get free certificate</button>
+      </form>
+    {% endif %}
+    <h3>Domain aliases</h3>
+    <form method="post" action="/sites/{{ site.id }}/www" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="check"><input type="checkbox" name="include_www" value="1" {{ 'checked' if site.include_www }}> Answer on www.{{ site.domain }}</label>
+      <button class="btn">Save</button>
+    </form>
+  </div>
+</section>
+
+<section class="card" id="resources">
+  <h2>Resources</h2>
+  <div class="grid-2 tight">
+    <div>
+      <dl class="kv">
+        <dt>PHP memory now</dt><dd>{% if live.memory is not none and live.memory is defined %}{{ live.memory|filesize }}{% if limits.memory_mb %} of {{ limits.memory_mb }} MB{% endif %}{% else %}<span class="muted">—</span>{% endif %}</dd>
+        <dt>PHP processes now</dt><dd>{{ live.tasks if live.tasks is defined and live.tasks is not none else '—' }}{% if live.state is defined and live.state and live.state != 'active' %} <span class="pill bad">{{ live.state }}</span>{% endif %}</dd>
+        <dt>CPU used since start</dt><dd>{{ '%.1f'|format(live.cpu_seconds) ~ ' s' if live.cpu_seconds is defined else '—' }}</dd>
+        <dt>Disk</dt><dd>{{ usage|filesize }}{% if limits.disk_mb %} of {{ limits.disk_mb }} MB
+          <progress max="{{ limits.disk_mb }}" value="{{ (usage / 1048576)|round }}"></progress>{% endif %}</dd>
+      </dl>
+    </div>
+    <div>
+      {% if is_admin %}
+      <form method="post" action="/sites/{{ site.id }}/limits" class="form-grid compact-grid">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>CPU %<input type="number" name="cpu_pct" min="0" value="{{ limits.cpu_pct }}"></label>
+        <label>Memory MB<input type="number" name="memory_mb" min="0" value="{{ limits.memory_mb }}"></label>
+        <label>PHP processes<input type="number" name="processes" min="1" value="{{ limits.processes }}"></label>
+        <label>Disk allowance MB<input type="number" name="disk_mb" min="0" value="{{ limits.disk_mb }}"></label>
+        <div class="full row"><button class="btn">Apply limits</button> <span class="muted small">CPU 100% = one full core · 0 = no limit</span></div>
+      </form>
+      {% else %}
+      <dl class="kv">
+        <dt>CPU</dt><dd>{{ (limits.cpu_pct ~ '% of a core') if limits.cpu_pct else 'No limit' }}</dd>
+        <dt>Memory</dt><dd>{{ (limits.memory_mb ~ ' MB') if limits.memory_mb else 'No limit' }}</dd>
+        <dt>PHP processes</dt><dd>{{ limits.processes }}</dd>
+        <dt>Disk</dt><dd>{{ (limits.disk_mb ~ ' MB') if limits.disk_mb else 'No limit' }}</dd>
+      </dl>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>SFTP access</h2>
+  <div class="grid-2 tight">
+    <div>
+      {% if site.sftp_enabled %}
+      <dl class="kv">
+        <dt>Host</dt><dd><code>{{ host }}</code> port 22</dd>
+        <dt>Username</dt><dd><code>{{ site.sysuser }}</code></dd>
+        <dt>Folder</dt><dd>Locked to this site; upload to <code>public/</code></dd>
+      </dl>
+      {% else %}
+      <p class="muted">Let developers upload files with any SFTP client (FileZilla, Cyberduck, VS Code). They're locked inside this site's folder.</p>
+      {% endif %}
+    </div>
+    <div>
+      <form method="post" action="/sites/{{ site.id }}/sftp" class="row">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="password" name="password" placeholder="New password (blank = generate)" autocomplete="new-password" aria-label="SFTP password">
+        <button class="btn {{ '' if site.sftp_enabled else 'primary' }}">{{ 'Change password' if site.sftp_enabled else 'Enable SFTP' }}</button>
+      </form>
+      {% if site.sftp_enabled %}
+      <form method="post" action="/sites/{{ site.id }}/sftp/disable" data-confirm="Disable SFTP access?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Disable SFTP</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if is_admin %}
+<section class="card danger-zone">
+  <h2>Delete site</h2>
+  <p class="muted">Removes the nginx config, PHP pool, cron jobs, certificate, mailboxes and system user.</p>
+  <form method="post" action="/sites/{{ site.id }}/delete" class="stack narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check"><input type="checkbox" name="remove_files" value="1" checked> Delete the site's files, mail and DNS zone</label>
+    <label class="check"><input type="checkbox" name="drop_dbs" value="1"> Also drop its databases</label>
+    <label><span>Type <code>{{ site.domain }}</code> to confirm</span><input name="confirm" autocomplete="off" spellcheck="false"></label>
+    <div><button class="btn danger">Delete {{ site.domain }}</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Files · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<div class="toolbar">
+  <div class="path">
+    <a href="/sites/{{ site.id }}/files?path=">{{ site.domain }}</a>
+    {% for name, p in crumbs %} / <a href="/sites/{{ site.id }}/files?path={{ p|urlq }}">{{ name }}</a>{% endfor %}
+  </div>
+  <div class="row">
+    <form method="post" action="/sites/{{ site.id }}/files/op" class="row" data-prompt="name" data-prompt-text="New folder name">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="mkdir">
+      <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="name">
+      <button class="btn">New folder</button>
+    </form>
+    <form method="post" action="/sites/{{ site.id }}/files/op" data-prompt="name" data-prompt-text="New file name">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="newfile">
+      <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="name">
+      <button class="btn">New file</button>
+    </form>
+    <form method="post" action="/sites/{{ site.id }}/files/upload" enctype="multipart/form-data" class="upload">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="dir" value="{{ rel }}">
+      <label class="btn primary">Upload<input type="file" name="files" multiple data-autosubmit hidden></label>
+    </form>
+  </div>
+</div>
+
+<section class="card flush dropzone" data-drop>
+<table class="table files">
+  <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Mode</th><th></th></tr></thead>
+  <tbody>
+  {% if parent is not none %}
+  <tr><td colspan="5"><a href="/sites/{{ site.id }}/files?path={{ parent|urlq }}">↑ Up one level</a></td></tr>
+  {% endif %}
+  {% for e in entries %}
+  <tr>
+    <td>
+      {% if e.is_dir %}<a class="strong" href="/sites/{{ site.id }}/files?path={{ e.rel|urlq }}"><span class="ico folder"></span>{{ e.name }}/</a>
+      {% elif e.editable %}<a href="/sites/{{ site.id }}/files/edit?path={{ e.rel|urlq }}"><span class="ico file"></span>{{ e.name }}</a>
+      {% else %}<span><span class="ico file"></span>{{ e.name }}</span>{% endif %}
+      {% if e.is_link %}<span class="pill">link</span>{% endif %}
+    </td>
+    <td class="muted">{{ '' if e.is_dir else e.size|filesize }}</td>
+    <td class="muted nowrap">{{ e.mtime.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td class="muted"><code>{{ e.mode }}</code></td>
+    <td class="actions">
+      {% if not e.is_dir %}<a class="linkish" href="/sites/{{ site.id }}/files/download?path={{ e.rel|urlq }}">Download</a>{% endif %}
+      <form method="post" action="/sites/{{ site.id }}/files/op" data-prompt="name" data-prompt-text="Rename to" data-prompt-default="{{ e.name }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="rename">
+        <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}"><input type="hidden" name="name">
+        <button class="linkish">Rename</button></form>
+      <form method="post" action="/sites/{{ site.id }}/files/op" data-confirm="Delete {{ e.name }}{{ ' and everything inside it' if e.is_dir }}?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="delete">
+        <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}">
+        <button class="linkish danger">Delete</button></form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">This folder is empty. Drop files here or use Upload.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</section>
+{% endblock %}

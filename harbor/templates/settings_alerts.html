@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+{% include "_settings_tabs.html" %}
+
+<section class="card">
+  <div class="row between"><h2>Current problems</h2>
+    <form method="post" action="/settings/alerts/check"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Check now</button></form></div>
+  {% if active %}
+  <ul class="alert-list-ul">{% for a in active %}<li class="sev-{{ a.severity }}"><strong>{{ a.title }}</strong><span class="muted small">{{ a.detail }} · since {{ a.first_seen }} UTC</span></li>{% endfor %}</ul>
+  {% else %}<p><span class="pill ok">All clear</span> <span class="muted">Checked every 5 minutes: disk space, services, certificates, sites answering, outgoing mail queue, backups, disk allowances.</span></p>{% endif %}
+</section>
+
+<form method="post" action="/settings/alerts" class="grid-2">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <section class="card stack">
+    <h2>Where to send alerts</h2>
+    <label>Email addresses <span class="muted small">(comma-separated)</span><input name="alert_email" value="{{ s.alert_email }}" placeholder="you@example.com" spellcheck="false"></label>
+    <label>Webhook <span class="muted small">(Slack, Discord, ntfy or any URL that accepts JSON)</span><input name="alert_webhook" value="{{ s.alert_webhook }}" placeholder="https://hooks.slack.com/services/…" spellcheck="false"></label>
+    <label>Warn when the disk is fuller than <span class="muted small">(%)</span><input type="number" name="alert_disk_pct" min="50" max="99" value="{{ s.alert_disk_pct }}"></label>
+    <p class="muted small">You get one message when a problem starts, a reminder every 24 hours while it lasts, and one when it's fixed.</p>
+  </section>
+  <section class="card stack">
+    <h2>How to send email</h2>
+    <p class="muted small">Leave the server blank to use this server's own mail system, but on DigitalOcean and many other providers outgoing port 25 is blocked, so use your mail provider's SMTP (IONOS, Gmail, SendGrid, Postmark…).</p>
+    <div class="form-grid">
+      <label>SMTP server<input name="smtp_host" value="{{ s.smtp_host }}" placeholder="smtp.ionos.com" spellcheck="false"></label>
+      <label>Port<input name="smtp_port" value="{{ s.smtp_port }}"></label>
+      <label>Security<select name="smtp_security">
+        <option value="starttls" {{ 'selected' if s.smtp_security == 'starttls' }}>STARTTLS (587)</option>
+        <option value="ssl" {{ 'selected' if s.smtp_security == 'ssl' }}>SSL/TLS (465)</option>
+        <option value="none" {{ 'selected' if s.smtp_security == 'none' }}>None</option></select></label>
+      <label>Username<input name="smtp_user" value="{{ s.smtp_user }}" autocomplete="off" spellcheck="false"></label>
+      <label>Password<input type="password" name="smtp_password" autocomplete="new-password" placeholder="{{ '•••••••• (saved, leave blank to keep)' if s.has_password else '' }}"></label>
+      <label>From address<input name="smtp_from" value="{{ s.smtp_from }}" placeholder="alerts@yourdomain.com" spellcheck="false"></label>
+    </div>
+  </section>
+  <div class="full row">
+    <button class="btn primary">Save</button>
+    <button class="btn" formaction="/settings/alerts/test">Send test alert</button>
+  </div>
+</form>
+
+{% if history %}
+<section class="card">
+  <h2>History</h2>
+  <table class="table compact">
+    <tbody>
+    {% for a in history %}
+    <tr><td class="nowrap muted">{{ a.first_seen }}</td><td>{{ a.title }}</td>
+      <td>{% if a.resolved_at %}<span class="pill ok">Resolved {{ a.resolved_at }}</span>{% else %}<span class="pill {{ 'bad' if a.severity == 'critical' else 'warn' }}">Active</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

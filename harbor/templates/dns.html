@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}DNS{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>DNS</h1><p class="muted">Zones hosted on this server's name servers.</p></div></header>
+
+{% if is_admin and not ns_set %}
+<div class="callout">
+  <strong>Set your name servers first.</strong> Zones currently use <code>{{ ns|join(', ') }}</code>.
+  <a href="/settings">Set ns1/ns2 in Settings →</a>
+</div>
+{% endif %}
+
+<section class="card flush">
+  {% if zones %}
+  <table class="table">
+    <thead><tr><th>Zone</th><th>Records</th><th>Serial</th><th>Created</th></tr></thead>
+    <tbody>
+    {% for z in zones %}
+    <tr><td><a class="strong" href="/dns/{{ z.id }}">{{ z.domain }}</a></td><td>{{ z.n }}</td><td><code>{{ z.serial }}</code></td><td class="muted">{{ z.created_at[:10] }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No zones yet. New sites get a zone automatically.</div>{% endif %}
+</section>
+
+{% if is_admin %}
+<section class="card narrow">
+  <h2>Add a zone</h2>
+  <p class="muted">For a domain that isn't a site here, e.g. one that only needs email or points elsewhere.</p>
+  <form method="post" action="/dns" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="domain" placeholder="example.org" required spellcheck="false" aria-label="Domain">
+    <label class="check"><input type="checkbox" name="defaults" value="1" checked> Start with default records (web, mail, SPF, DMARC) pointing to {{ ip }}</label>
+    <div><button class="btn primary">Create zone</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

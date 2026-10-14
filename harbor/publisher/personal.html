@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<meta name="description" content="{{ tagline }}">
+<style>
+  :root { --accent: {{ accent }}; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 18px/1.7 Georgia, "Iowan Old Style", "Palatino Linotype", serif; color: #222; background: #fffdf8; }
+  main { max-width: 680px; margin: 0 auto; padding: 14vh 24px 10vh; }
+  .mark { width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center;
+          font: 700 1.6rem/1 ui-sans-serif, system-ui, sans-serif; }
+  h1 { font-size: 2.6rem; line-height: 1.15; margin: 28px 0 6px; letter-spacing: -0.01em; }
+  .tagline { color: #6b6257; font-style: italic; margin: 0 0 30px; }
+  .bio { white-space: pre-line; }
+  ul { list-style: none; padding: 0; margin: 36px 0 0; display: flex; flex-wrap: wrap; gap: 10px 26px;
+       font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">{{ title[:1] }}</div>
+  <h1>{{ title }}</h1>
+  {% if tagline %}<p class="tagline">{{ tagline }}</p>{% endif %}
+  {% if description %}<div class="bio">{{ description }}</div>{% endif %}
+  <ul>
+    {% if email %}<li><a href="mailto:{{ email }}">{{ email }}</a></li>{% endif %}
+    {% if phone %}<li>{{ phone }}</li>{% endif %}
+    {% if address %}<li>{{ address }}</li>{% endif %}
+    {% for name, url in links %}<li><a href="{{ url }}" rel="me noopener">{{ name }}</a></li>{% endfor %}
+  </ul>
+</main>
+</body>
+</html>

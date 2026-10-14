@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Security{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Server security</h1><p class="muted">Who can reach the panel, and automatic blocking of password-guessing attacks.</p></div></header>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Panel access</h2>
+    <p class="muted">Limit the panel (port 8443) to your own addresses. Everyone else gets "403 Forbidden" before they can even see the sign-in page. Dynamic DNS updates still work from anywhere.</p>
+    <p>Your address right now: <code>{{ my_ip }}</code></p>
+    <form method="post" action="/security/access" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>Allowed addresses <span class="muted small">(one per line or comma-separated; ranges like 203.0.113.0/24 work. Empty = anyone)</span>
+        <textarea name="ips" rows="4" spellcheck="false" placeholder="{{ my_ip }}">{{ allow|join('\n') }}</textarea></label>
+      <label class="check"><input type="checkbox" name="webmail" value="1" {{ 'checked' if allow_webmail }}> Apply the same list to webmail (port 2096)</label>
+      <p class="muted small">If your address changes and you get locked out, run over SSH: <code>sudo /opt/harbor/venv/bin/python -m harbor allow-ip --clear</code></p>
+      <div><button class="btn primary">Save</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Two-factor sign-in</h2>
+    {% if require_2fa %}
+      <p><span class="pill ok">Required</span> Every admin must use an authenticator app to sign in.</p>
+    {% else %}
+      <p class="muted">Make two-factor sign-in mandatory for all admins. Admins without it are sent to set it up the next time they sign in.</p>
+    {% endif %}
+    {% if no2fa %}<p class="small">Admins without 2FA: {% for u in no2fa %}<strong>{{ u.username }}</strong>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+    <form method="post" action="/security/require-2fa">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="on" value="{{ '0' if require_2fa else '1' }}">
+      {% if require_2fa %}<button class="btn">Make it optional</button>
+      {% elif my_2fa %}<button class="btn primary">Require for all admins</button>
+      {% else %}<a class="btn primary" href="/account#twofactor">First, set it up for yourself</a>{% endif %}
+    </form>
+  </div>
+</section>
+
+<section class="card" id="bans">
+  <h2>Automatic blocking <span class="muted small">fail2ban</span></h2>
+  {% if not features.fail2ban %}
+    <p class="muted">fail2ban isn't installed. Re-run the installer to add it.</p>
+  {% elif not f2b %}
+    <p><span class="pill bad">Not running</span> Start it over SSH: <code>sudo systemctl restart fail2ban</code>, then check <code>sudo journalctl -u fail2ban -n 50</code>.</p>
+  {% else %}
+  <p class="muted">An address that fails to sign in 5 times in 10 minutes is blocked from the whole server for 1 hour. Your allowed addresses and this server are never blocked.</p>
+  <div class="table-wrap">
+  <table class="table compact">
+    <thead><tr><th>Watching</th><th>Failing now</th><th>Blocked now</th><th>Blocked in total</th></tr></thead>
+    <tbody>
+    {% for j in jails %}
+    <tr>
+      <td>{{ j.label }}</td><td>{{ j.failed }}</td>
+      <td>{% for ip in j.banned %}<span class="chip-inline"><code>{{ ip }}</code>
+          <form method="post" action="/security/unban" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ip" value="{{ ip }}"><input type="hidden" name="jail" value="{{ j.name }}"><button class="linkish">Unblock</button></form></span>
+          {% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td>{{ j.total_banned }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <form method="post" action="/security/ban" class="row narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="ip" placeholder="IP address to block everywhere" required spellcheck="false" aria-label="IP address">
+    <button class="btn danger">Block</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Recent failed panel sign-ins</h2>
+  {% if failures %}
+  <table class="table compact">
+    <tbody>
+    {% for f in failures %}<tr><td class="nowrap muted">{{ f.time }}</td><td>{{ 'wrong 2FA code' if f.what == '2fa' else 'wrong password' }}</td><td><code>{{ f.user }}</code></td><td><code>{{ f.ip }}</code></td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">None recorded.</p>{% endif %}
+</section>
+{% endblock %}

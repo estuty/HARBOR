@@ -1,0 +1,6 @@
+<header class="page-head"><div><h1>Settings</h1><p class="muted">Server-wide configuration.</p></div></header>
+<nav class="tabs">
+  {% for key, label, url in [('general','General','/settings'),('backups','Offsite backups','/settings/backups'),('alerts','Alerts','/settings/alerts'),('updates','Updates','/settings/updates')] %}
+  <a href="{{ url }}" class="{{ 'on' if tab == key }}">{{ label }}</a>
+  {% endfor %}
+</nav>

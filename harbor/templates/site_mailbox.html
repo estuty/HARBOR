@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ address }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+<p class="crumb"><a href="/sites/{{ site.id }}/mail">Email</a> / <strong>{{ address }}</strong></p>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>{{ address }}</h2>
+    <dl class="kv">
+      <dt>Storage</dt><dd>{% if usage is not none %}{{ usage|filesize }}{{ (' of ' ~ b.quota_mb ~ ' MB') if b.quota_mb else ' · no limit' }}{% else %}{{ (b.quota_mb ~ ' MB quota') if b.quota_mb else 'No limit' }}{% endif %}</dd>
+      <dt>Login</dt><dd>{% if b.enabled %}<span class="pill ok">Allowed</span>{% else %}<span class="pill bad">Suspended</span> <span class="muted small">(still receives mail)</span>{% endif %}</dd>
+      <dt>Created</dt><dd>{{ b.created_at }}</dd>
+      <dt>Webmail</dt><dd><a href="{{ webmail }}" target="_blank" rel="noopener">{{ webmail }}</a></dd>
+    </dl>
+    <form method="post" action="/sites/{{ site.id }}/mail/boxes/{{ b.id }}/update" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>New password <span class="muted small">(leave blank to keep)</span><input type="password" name="password" autocomplete="new-password"></label>
+      <label>Quota <span class="muted small">(MB, 0 = no limit)</span><input type="number" name="quota" min="0" value="{{ b.quota_mb }}"></label>
+      <label>Login
+        <select name="enabled"><option value="1" {{ 'selected' if b.enabled }}>Allowed</option><option value="0" {{ 'selected' if not b.enabled }}>Suspended</option></select>
+      </label>
+      <div><button class="btn primary">Save</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Autoresponder</h2>
+    <p class="muted">Automatic reply, e.g. while on holiday. Each sender gets at most one reply per interval.</p>
+    <form method="post" action="/sites/{{ site.id }}/mail/boxes/{{ b.id }}/autoresponder" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if auto and auto.enabled }}> Send automatic replies</label>
+      <label>Subject<input name="subject" value="{{ auto.subject if auto else 'Out of office' }}"></label>
+      <label>Message<textarea name="body" rows="6">{{ auto.body if auto else '' }}</textarea></label>
+      <div class="row wrap">
+        <label>From<input type="date" name="start" value="{{ auto.start_date or '' if auto else '' }}"></label>
+        <label>Until<input type="date" name="end" value="{{ auto.end_date or '' if auto else '' }}"></label>
+        <label>Reply once every<select name="days">{% for n in [1, 3, 7] %}<option value="{{ n }}" {{ 'selected' if auto and auto.days == n }}>{{ n }} day{{ 's' if n > 1 }}</option>{% endfor %}</select></label>
+      </div>
+      <div><button class="btn">Save autoresponder</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="card danger-zone">
+  <h2>Delete mailbox</h2>
+  <form method="post" action="/sites/{{ site.id }}/mail/boxes/{{ b.id }}/delete" data-confirm="Delete {{ address }} and all of its mail? This can't be undone.">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn danger">Delete {{ address }}</button>
+  </form>
+</section>
+{% endblock %}
