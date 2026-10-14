@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Updates{% endblock %}
+{% block content %}
+{% include "_settings_tabs.html" %}
+{% if busy %}<span data-update-poll></span>{% endif %}
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Install an update</h2>
+    <p>Running <strong>Harbor {{ version }}</strong>.</p>
+    <p class="muted">Harbor saves the current version and database first. If the new version doesn't start, it automatically goes back to this one.</p>
+    <form method="post" action="/settings/updates/upload" enctype="multipart/form-data" class="row" data-busy="Uploading…">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="file" name="package" accept=".gz,.tgz" required aria-label="Harbor package">
+      <button class="btn primary" {{ 'disabled' if busy }}>Upload &amp; install</button>
+    </form>
+    <h3>Or from a link</h3>
+    <form method="post" action="/settings/updates/url" class="row" data-busy="Downloading…">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input name="url" placeholder="https://github.com/…/releases/download/…/harbor.tar.gz" required spellcheck="false" aria-label="Package link">
+      <button class="btn" {{ 'disabled' if busy }}>Install</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Saved versions</h2>
+    {% if releases %}
+    <p class="muted">Go back to a version saved before an earlier update. Your sites and settings aren't touched.</p>
+    <ul class="site-list">
+      {% for r in releases %}
+      <li><span><strong>{{ r.version }}</strong> <span class="muted small">{{ r.name }}</span></span>
+        <form method="post" action="/settings/updates/rollback" data-confirm="Go back to Harbor {{ r.version }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="release" value="{{ r.name }}"><button class="linkish" {{ 'disabled' if busy }}>Roll back</button></form></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">None yet. A copy is saved automatically before each update.</p>{% endif %}
+  </div>
+</section>
+
+{% if rows %}
+<section class="card">
+  <h2>Update history</h2>
+  {% for u in rows %}
+  <details class="update" {{ 'open' if loop.first }}>
+    <summary>
+      <span class="nowrap muted">{{ u.created_at }}</span>
+      <span>{{ u.from_version or '?' }} → {{ u.to_version or '?' }}</span>
+      {% if u.status == 'done' %}<span class="pill ok">Installed</span>
+      {% elif u.status == 'rolled_back' %}<span class="pill bad">Failed: rolled back</span>
+      {% elif u.status == 'failed' %}<span class="pill bad">Rejected</span>
+      {% else %}<span class="pill warn">{{ u.status|capitalize }}…</span>{% endif %}
+    </summary>
+    <pre class="log">{{ u.log or 'Waiting for the updater to start…' }}</pre>
+  </details>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

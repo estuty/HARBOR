@@ -1,0 +1,17 @@
+{# expects `checks` #}
+{% set icons = {'ok': '✓', 'warn': '!', 'bad': '✕', 'info': 'i', 'unknown': '?'} %}
+{% for area, items in checks|groupby('area') %}
+<h3>{{ area }}</h3>
+<ul class="checks-list">
+  {% for c in items|sort(attribute='status', reverse=False) %}
+  <li class="chk chk-{{ c.status }}">
+    <span class="chk-icon" aria-label="{{ c.status }}">{{ icons[c.status] }}</span>
+    <div>
+      <strong>{{ c.title }}</strong>
+      {% if c.detail %}<div class="muted small wrap">{{ c.detail }}</div>{% endif %}
+      {% if c.fix %}<div class="fix small"><span>How to fix:</span> {{ c.fix }}</div>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}

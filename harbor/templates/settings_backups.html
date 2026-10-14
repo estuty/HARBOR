@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Offsite backups{% endblock %}
+{% block content %}
+{% include "_settings_tabs.html" %}
+
+<section class="card">
+  <h2>Offsite storage {% if configured %}<span class="pill ok">Connected</span>{% else %}<span class="pill warn">Not set up</span>{% endif %}</h2>
+  <p class="muted">Backups stored only on this server are lost with the server. Copy them to S3-compatible storage: DigitalOcean Spaces, Backblaze B2, AWS S3, Wasabi, Cloudflare R2… Use a <strong>private</strong> bucket and an access key limited to that bucket.</p>
+  <form method="post" action="/settings/backups" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="full">Endpoint <span class="muted small">(blank for AWS S3; e.g. https://fra1.digitaloceanspaces.com or https://s3.eu-central-003.backblazeb2.com)</span>
+      <input name="endpoint" value="{{ s.offsite_endpoint }}" spellcheck="false" placeholder="https://nyc3.digitaloceanspaces.com"></label>
+    <label>Region <span class="muted small">(e.g. nyc3, us-east-1)</span><input name="region" value="{{ s.offsite_region }}" spellcheck="false"></label>
+    <label>Bucket<input name="bucket" value="{{ s.offsite_bucket }}" spellcheck="false" placeholder="my-backups"></label>
+    <label>Folder prefix<input name="prefix" value="{{ s.offsite_prefix or 'harbor' }}" spellcheck="false"></label>
+    <label>Access key<input name="key" value="{{ s.offsite_key }}" spellcheck="false" autocomplete="off"></label>
+    <label>Secret key<input type="password" name="secret" autocomplete="new-password" placeholder="{{ '•••••••• (saved, leave blank to keep)' if s.offsite_secret else '' }}"></label>
+    <label>Keep copies for <span class="muted small">(days)</span><input type="number" name="keep_days" min="0" value="{{ s.offsite_keep_days }}"></label>
+    <label class="check full"><input type="checkbox" name="auto" value="1" {{ 'checked' if s.offsite_auto }}> Copy every new backup offsite automatically (manual and scheduled)</label>
+    <div class="full row">
+      <button class="btn primary">Save</button>
+      <button class="btn" formaction="/settings/backups/test">Test connection</button>
+    </div>
+  </form>
+  <p class="muted small">Saving runs a quick check (write, read, delete a small test file), so wrong settings are never stored. Copies older than the number of days are deleted (0 = keep forever); the 3 newest per site are always kept. To turn offsite copies off, clear the bucket and save.</p>
+</section>
+
+{% if recent %}
+<section class="card">
+  <h2>Recent offsite copies</h2>
+  <table class="table compact">
+    <tbody>
+    {% for b in recent %}
+    <tr><td class="nowrap muted">{{ b.created_at }}</td><td><a href="/sites/{{ b.site_id }}/backups">{{ b.domain }}</a></td><td><code class="small">{{ b.filename }}</code></td>
+      <td>{% if b.remote_status == 'uploaded' %}<span class="pill ok">Copied</span>{% elif b.remote_status == 'uploading' %}<span class="pill warn">Copying</span>{% else %}<span class="pill bad">Failed</span> <span class="muted small">{{ b.remote_error }}</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

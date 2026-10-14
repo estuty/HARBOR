@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Health{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Health</h1><p class="muted">Checked live, the way the rest of the internet sees your server and domains.</p></div>
+  <a class="btn" href="/health">Check again</a></header>
+
+<section class="card">
+  <div class="row between"><h2>Server</h2>
+    <span>{% if server_sum.bad %}<span class="pill bad">{{ server_sum.bad }} problem{{ 's' if server_sum.bad > 1 }}</span>{% endif %}
+      {% if server_sum.warn %}<span class="pill warn">{{ server_sum.warn }} to improve</span>{% endif %}
+      {% if not server_sum.bad and not server_sum.warn %}<span class="pill ok">All good</span>{% endif %}</span></div>
+  {% with checks=server %}{% include "_checks.html" %}{% endwith %}
+</section>
+
+{% for s in per_site %}
+<section class="card">
+  <div class="row between"><h2><a href="/sites/{{ s.site.id }}">{{ s.site.domain }}</a></h2>
+    <span>{% if s.sum.bad %}<span class="pill bad">{{ s.sum.bad }} problem{{ 's' if s.sum.bad > 1 }}</span>{% endif %}
+      {% if s.sum.warn %}<span class="pill warn">{{ s.sum.warn }} to improve</span>{% endif %}
+      {% if not s.sum.bad and not s.sum.warn %}<span class="pill ok">All good</span>{% endif %}</span></div>
+  {% if s.sum.bad or s.sum.warn %}
+    {% with checks=s.checks|selectattr('status', 'in', ['bad', 'warn'])|list %}{% include "_checks.html" %}{% endwith %}
+    <a class="more" href="/sites/{{ s.site.id }}/health">All checks for {{ s.site.domain }} →</a>
+  {% else %}<p class="muted">{{ s.sum.ok }} checks passed.</p>{% endif %}
+</section>
+{% endfor %}
+{% endblock %}

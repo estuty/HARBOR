@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Redirects · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<section class="card flush">
+  {% if redirects %}
+  <table class="table">
+    <thead><tr><th>From</th><th>To</th><th>Type</th><th></th></tr></thead>
+    <tbody>
+    {% for r in redirects %}
+    <tr>
+      <td><code>{{ r.source }}</code>{% if r.match == 'prefix' %} <span class="pill">and below</span>{% endif %}</td>
+      <td><code class="wrap">{{ r.target }}</code>{% if r.match == 'prefix' %}<span class="muted">…</span>{% endif %}</td>
+      <td>{{ r.code }} {{ 'permanent' if r.code == 301 else 'temporary' }}</td>
+      <td class="actions"><form method="post" action="/sites/{{ site.id }}/redirects/{{ r.id }}/delete" data-confirm="Remove this redirect?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No redirects yet.</div>{% endif %}
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Add a redirect</h2>
+    <form method="post" action="/sites/{{ site.id }}/redirects" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>From path<input name="source" placeholder="/old-page" required spellcheck="false"></label>
+      <label>Match
+        <select name="match">
+          <option value="exact">Exactly this path</option>
+          <option value="prefix">This path and everything below it</option>
+        </select>
+      </label>
+      <label>To<input name="target" placeholder="https://example.com/new-page or /new-page" required spellcheck="false"></label>
+      <label>Type
+        <select name="code"><option value="301">301 Permanent (best for SEO)</option><option value="302">302 Temporary</option></select>
+      </label>
+      <p class="muted small">"Everything below it" keeps the rest of the address: <code>/blog/</code> → <code>https://news.example.com/</code> sends <code>/blog/post-1</code> to <code>https://news.example.com/post-1</code>. Use <code>/</code> to redirect the whole site.</p>
+      <div><button class="btn primary">Add redirect</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Preferred address</h2>
+    <p class="muted">Send visitors to one version of your domain so search engines don't see duplicates.</p>
+    <form method="post" action="/sites/{{ site.id }}/canonical" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="check"><input type="radio" name="canonical" value="none" {{ 'checked' if canonical == 'none' }}> Don't redirect</label>
+      <label class="check"><input type="radio" name="canonical" value="bare" {{ 'checked' if canonical == 'bare' }} {{ 'disabled' if not site.include_www }}> www.{{ site.domain }} → {{ site.domain }}</label>
+      <label class="check"><input type="radio" name="canonical" value="www" {{ 'checked' if canonical == 'www' }} {{ 'disabled' if not site.include_www }}> {{ site.domain }} → www.{{ site.domain }}</label>
+      <div><button class="btn">Save</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+{% set tab = 'general' %}
+{% include "_settings_tabs.html" %}
+
+<form method="post" action="/settings" class="grid-2">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <section class="card stack">
+    <h2>Identity</h2>
+    <label>Server host name <span class="muted small">(e.g. server1.example.com: used as the mail server name)</span>
+      <input name="hostname" value="{{ s.hostname }}" placeholder="server1.example.com" spellcheck="false"></label>
+    <label>Public IPv4 address <span class="muted small">(detected: {{ detected_ip }})</span>
+      <input name="server_ipv4" value="{{ s.server_ipv4 }}" placeholder="{{ detected_ip }}" spellcheck="false"></label>
+    <label>Public IPv6 address <span class="muted small">(optional)</span>
+      <input name="server_ipv6" value="{{ s.server_ipv6 }}" spellcheck="false"></label>
+  </section>
+  <section class="card stack">
+    <h2>DNS hosting</h2>
+    <label>Name server 1<input name="ns1" value="{{ s.ns1 }}" placeholder="ns1.example.com" spellcheck="false"></label>
+    <label>Name server 2<input name="ns2" value="{{ s.ns2 }}" placeholder="ns2.example.com" spellcheck="false"></label>
+    <label>Hostmaster email<input name="hostmaster" value="{{ s.hostmaster }}" placeholder="hostmaster@example.com" spellcheck="false"></label>
+    <label class="check"><input type="checkbox" name="dns_auto_zone" value="1" {{ 'checked' if dns_auto }}> Create a DNS zone automatically for each new site</label>
+    <p class="muted small">At your registrar, create "glue records" for ns1/ns2 pointing to this server's IP, then set them as the name servers for each domain you host here.</p>
+  </section>
+  <div class="full"><button class="btn primary">Save settings</button></div>
+</form>
+
+<section class="card">
+  <h2>Trusted certificate for the panel &amp; mail</h2>
+  {% if s.hostname_ssl %}
+  <p><span class="pill ok">On</span> The panel (:8443), webmail (:2096) and mail server use a Let's Encrypt certificate for <code>{{ s.hostname }}</code>.</p>
+  {% else %}
+  <p class="muted">The panel currently uses a self-signed certificate (browser warning). Once <code>{{ s.hostname or 'your host name' }}</code> points to this server, get a free trusted certificate for it. Mail apps will then connect without warnings too.</p>
+  {% endif %}
+  <form method="post" action="/settings/secure" data-busy="Requesting certificate…">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn {{ '' if s.hostname_ssl else 'primary' }}" {{ 'disabled' if not s.hostname }}>{{ 'Renew now' if s.hostname_ssl else 'Get certificate for ' ~ (s.hostname or 'host name') }}</button>
+  </form>
+</section>
+
+<section class="card" id="limits">
+  <h2>Default limits for new sites</h2>
+  <p class="muted">Applied to each new site's PHP. CPU 100% = one full core; PHP processes = requests handled at once; 0 means no limit. Change a single site's limits on its Overview tab.</p>
+  <form method="post" action="/settings/limits" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>CPU %<input type="number" name="cpu_pct" min="0" value="{{ limits.cpu_pct }}"></label>
+    <label>Memory MB<input type="number" name="memory_mb" min="0" value="{{ limits.memory_mb }}"></label>
+    <label>PHP processes<input type="number" name="processes" min="1" value="{{ limits.processes }}"></label>
+    <label>Disk allowance MB<input type="number" name="disk_mb" min="0" value="{{ limits.disk_mb }}"></label>
+    <div class="full"><button class="btn">Save defaults</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Installed components</h2>
+  <dl class="kv">
+    <dt>PHP versions</dt><dd>{{ php_versions|join(', ') }}</dd>
+    <dt>Email</dt><dd>{{ 'Postfix + Dovecot + Rspamd' if features.mail else 'Not installed' }}</dd>
+    <dt>Webmail</dt><dd>{{ 'Roundcube on port 2096' if features.webmail else 'Not installed' }}</dd>
+    <dt>DNS</dt><dd>{{ 'BIND 9' if features.dns else 'Not installed' }}</dd>
+    <dt>Firewall</dt><dd>{{ 'ModSecurity + OWASP CRS' if features.modsec else 'Not installed' }}</dd>
+    <dt>App installer</dt><dd>{{ 'WP-CLI' if features.apps else 'Not installed' }}</dd>
+    <dt>Brute-force protection</dt><dd>{{ 'fail2ban' if features.fail2ban else 'Not installed' }}</dd>
+  </dl>
+</section>
+{% endblock %}

@@ -1,0 +1,15 @@
+<header class="page-head">
+  <div>
+    <p class="crumb"><a href="/sites">Sites</a> /</p>
+    <h1>{{ site.domain }}</h1>
+  </div>
+  <a class="btn" href="http{{ 's' if site.ssl }}://{{ site.domain }}" target="_blank" rel="noopener">Visit site ↗</a>
+</header>
+<nav class="tabs">
+  {% set tabs = [('overview','Overview'),('files','Files'),('deploy','Deploy'),('databases','Databases')] %}
+  {% if features.mail %}{% set tabs = tabs + [('mail','Email')] %}{% endif %}
+  {% set tabs = tabs + [('health','Health'),('apps','Apps'),('redirects','Redirects'),('security','Security'),('php','PHP'),('cron','Cron'),('backups','Backups'),('stats','Stats'),('logs','Logs'),('advanced','Advanced')] %}
+  {% for key, label in tabs %}
+  <a href="/sites/{{ site.id }}{{ '' if key == 'overview' else '/' ~ key }}" class="{{ 'on' if tab == key }}">{{ label }}</a>
+  {% endfor %}
+</nav>

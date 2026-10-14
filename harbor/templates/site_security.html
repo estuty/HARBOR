@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Security · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<nav class="jump"><a href="#ip">IP blocker</a><a href="#privacy">Directory privacy</a><a href="#hotlink">Hotlink protection</a><a href="#modsec">ModSecurity</a></nav>
+
+<section class="card" id="ip">
+  <h2>IP blocker</h2>
+  <p class="muted">Blocked visitors get a 403 Forbidden. Use a single address or a range like <code>203.0.113.0/24</code>.</p>
+  <form method="post" action="/sites/{{ site.id }}/security/ip" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="ips" placeholder="198.51.100.7, 203.0.113.0/24" required spellcheck="false" aria-label="IP addresses">
+    <button class="btn primary">Block</button>
+  </form>
+  {% if ip_deny %}
+  <ul class="chips">
+    {% for ip in ip_deny %}
+    <li><code>{{ ip }}</code>
+      <form method="post" action="/sites/{{ site.id }}/security/ip/unblock"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ip" value="{{ ip }}"><button class="linkish" aria-label="Unblock {{ ip }}">×</button></form></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="card" id="privacy">
+  <h2>Directory privacy</h2>
+  <p class="muted">Ask for a username and password before showing a folder, e.g. <code>/admin/</code> or <code>/staging/</code>.</p>
+  {% for d in dirs %}
+  <div class="subcard">
+    <div class="row between">
+      <div><code class="strong">{{ d.path }}</code> <span class="muted small">"{{ d.realm }}"</span>
+        {% if dir_users[d.id] %}<span class="pill ok">Protected</span>{% else %}<span class="pill warn">No logins yet: not protected</span>{% endif %}</div>
+      <form method="post" action="/sites/{{ site.id }}/security/dirs/{{ d.id }}/delete" data-confirm="Remove protection from {{ d.path }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Remove protection</button></form>
+    </div>
+    {% if dir_users[d.id] %}
+    <ul class="chips">{% for u in dir_users[d.id] %}<li>{{ u.username }}
+      <form method="post" action="/sites/{{ site.id }}/security/dirs/{{ d.id }}/users/{{ u.id }}/delete" data-confirm="Remove login {{ u.username }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish" aria-label="Remove {{ u.username }}">×</button></form></li>{% endfor %}</ul>
+    {% endif %}
+    <form method="post" action="/sites/{{ site.id }}/security/dirs/{{ d.id }}/users" class="row wrap">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input name="username" placeholder="Username" required autocomplete="off" aria-label="Username">
+      <input name="password" type="password" placeholder="Password (8+ characters)" required autocomplete="new-password" aria-label="Password">
+      <button class="btn">Add / change login</button>
+    </form>
+  </div>
+  {% endfor %}
+  <form method="post" action="/sites/{{ site.id }}/security/dirs" class="stack narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h3>Protect a folder</h3>
+    <label>Folder<input name="path" placeholder="/admin/" required spellcheck="false"></label>
+    <label>Name shown in the login prompt<input name="realm" placeholder="Restricted area"></label>
+    <div class="row wrap">
+      <input name="username" placeholder="First username" autocomplete="off" aria-label="Username">
+      <input name="password" type="password" placeholder="Password" autocomplete="new-password" aria-label="Password">
+    </div>
+    <div><button class="btn primary">Protect folder</button></div>
+  </form>
+</section>
+
+<section class="card" id="hotlink">
+  <h2>Hotlink protection</h2>
+  <p class="muted">Stop other websites from embedding your images and videos (and using your bandwidth). Direct visits and your own pages still work.</p>
+  <form method="post" action="/sites/{{ site.id }}/security/hotlink" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{ 'checked' if hot.enabled }}> Turn on hotlink protection</label>
+    <label>Protected file types<input name="exts" value="{{ hot.exts|join(', ') }}" spellcheck="false"></label>
+    <label>Also allow these sites <span class="muted small">(comma-separated, e.g. partner.com, *.cdn.example)</span><input name="allowed" value="{{ hot.allowed|join(', ') }}" spellcheck="false"></label>
+    <div><button class="btn">Save</button></div>
+  </form>
+</section>
+
+<section class="card" id="modsec">
+  <h2>ModSecurity <span class="muted small">web application firewall · OWASP Core Rule Set</span></h2>
+  {% if not features.modsec %}
+  <p class="muted">ModSecurity isn't installed on this server. Re-run the installer to add it.</p>
+  {% else %}
+  <form method="post" action="/sites/{{ site.id }}/security/modsec" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="seg-radio">
+      <label><input type="radio" name="mode" value="off" {{ 'checked' if ms.mode == 'off' }}> Off</label>
+      <label><input type="radio" name="mode" value="detect" {{ 'checked' if ms.mode == 'detect' }}> Detect only <span class="muted small">(log, don't block)</span></label>
+      <label><input type="radio" name="mode" value="on" {{ 'checked' if ms.mode == 'on' }}> Block attacks</label>
+    </div>
+    <label>Disabled rule IDs <span class="muted small">(use if a rule blocks something legitimate)</span>
+      <input name="disabled_rules" value="{{ ms.disabled_rules|join(' ') }}" placeholder="942100 920350" spellcheck="false"></label>
+    <p class="muted small">Tip: run in "Detect only" for a few days, check the hits below, disable any false positives, then switch to blocking.</p>
+    <div><button class="btn primary">Save</button></div>
+  </form>
+  {% if ms.mode != 'off' %}
+  <h3>Recent hits</h3>
+  {% if hits %}
+  <div class="table-wrap">
+  <table class="table compact">
+    <thead><tr><th>Time</th><th>Visitor</th><th>Request</th><th>Rule</th><th></th></tr></thead>
+    <tbody>
+    {% for h in hits %}
+    <tr>
+      <td class="nowrap muted small">{{ h.time }}</td>
+      <td class="nowrap"><code>{{ h.ip }}</code></td>
+      <td><code class="wrap small">{{ h.method }} {{ h.uri }}</code><div class="muted small">{{ h.message }}</div></td>
+      <td class="nowrap">{{ h.rule }} {% if h.blocked %}<span class="pill bad">blocked</span>{% endif %}</td>
+      <td class="actions">
+        {% if h.rule %}<form method="post" action="/sites/{{ site.id }}/security/modsec/disable-rule" data-confirm="Disable rule {{ h.rule }} for this site?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="rule" value="{{ h.rule }}"><button class="linkish">Disable rule</button></form>{% endif %}
+        <form method="post" action="/sites/{{ site.id }}/security/ip"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ips" value="{{ h.ip }}"><button class="linkish danger">Block IP</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No hits recorded yet.</p>{% endif %}
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

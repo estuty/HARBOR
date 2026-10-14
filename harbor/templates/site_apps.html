@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Apps · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+{% if busy %}<span data-autorefresh="5"></span>{% endif %}
+
+{% if installs %}
+<section class="card flush">
+  <table class="table">
+    <thead><tr><th>Application</th><th>Location</th><th>Version</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for i in installs %}
+    {% set url = ('https' if site.ssl else 'http') ~ '://' ~ site.domain ~ i.path.rstrip('/') %}
+    <tr>
+      <td><strong>{{ apps[i.app].name if i.app in apps else i.app }}</strong>{% if i.admin_user %}<div class="muted small">admin user: {{ i.admin_user }}</div>{% endif %}</td>
+      <td><a href="{{ url }}/" target="_blank" rel="noopener">{{ i.path }}</a></td>
+      <td>{{ i.version or '—' }}</td>
+      <td>
+        {% if i.status == 'installed' %}<span class="pill ok">Installed</span>
+        {% elif i.status in ('installing', 'updating') %}<span class="pill warn">{{ i.status|capitalize }}…</span>
+        {% else %}<span class="pill bad">Failed</span>{% endif %}
+        {% if i.error %}<div class="muted small">{{ i.error }}</div>{% endif %}
+      </td>
+      <td class="actions">
+        {% if i.status == 'installed' %}
+        <a class="linkish" href="{{ url }}/wp-admin/" target="_blank" rel="noopener">Admin ↗</a>
+        <form method="post" action="/sites/{{ site.id }}/apps/{{ i.id }}/update" data-confirm="Update WordPress core, plugins and themes? Take a backup first."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">Update all</button></form>
+        {% endif %}
+        {% if i.status not in ('installing', 'updating') %}
+        <details class="inline">
+          <summary class="linkish danger">Remove</summary>
+          <form method="post" action="/sites/{{ site.id }}/apps/{{ i.id }}/remove" class="pop stack" data-confirm="Remove this installation?">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <label class="check"><input type="checkbox" name="files" value="1"> Delete its files</label>
+            <label class="check"><input type="checkbox" name="db" value="1"> Drop its database</label>
+            <button class="btn danger">Remove</button>
+          </form>
+        </details>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Install WordPress</h2>
+  {% if not features.apps %}
+  <p class="muted">WP-CLI isn't installed on this server. Re-run the installer to add it.</p>
+  {% else %}
+  <p class="muted">Creates a database, downloads the latest WordPress, configures it and creates your admin account, all as this site's own user.</p>
+  <form method="post" action="/sites/{{ site.id }}/apps/wordpress" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Install in
+      <span class="prefix"><code>{{ site.domain }}/</code><input name="subdir" placeholder="(site root)" spellcheck="false"></span></label>
+    <label>Site title<input name="title" placeholder="My new site" required></label>
+    <label>Admin username<input name="admin_user" value="admin_{{ site.sysuser }}" required autocomplete="off"></label>
+    <label>Admin email<input type="email" name="admin_email" value="{{ default_email }}" required></label>
+    <label>Admin password<input type="password" name="admin_pass" required minlength="12" autocomplete="new-password" placeholder="At least 12 characters"></label>
+    <div class="full"><button class="btn primary">Install WordPress</button></div>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card" id="publisher">
+  <h2>Site Publisher</h2>
+  <p class="muted">No code needed: pick a template, fill in your details, and publish a simple one-page site. Your current <code>index.html</code> is kept as a backup.</p>
+  <form method="post" action="/sites/{{ site.id }}/publisher" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="tiles">
+      {% for key, t in templates_.items() %}
+      <label class="tile">
+        <input type="radio" name="template" value="{{ key }}" {{ 'checked' if (pub.template or 'business') == key }}>
+        <span class="thumb t-{{ key }}" aria-hidden="true"><i></i><i></i><i></i></span>
+        <strong>{{ t.name }}</strong><span class="muted small">{{ t.desc }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="form-grid">
+      <label>Title / name<input name="title" value="{{ pub.title or site.domain }}" required></label>
+      <label>Tagline<input name="tagline" value="{{ pub.tagline or '' }}" placeholder="Fresh bread, baked daily"></label>
+      <label class="full">About<textarea name="description" rows="3">{{ pub.description or '' }}</textarea></label>
+      <label>Email<input type="email" name="email" value="{{ pub.email or '' }}"></label>
+      <label>Phone<input name="phone" value="{{ pub.phone or '' }}"></label>
+      <label>Address<input name="address" value="{{ pub.address or '' }}"></label>
+      <label>Accent colour<input type="color" name="accent" value="{{ pub.accent or '#0d7a6b' }}"></label>
+      <label>Services <span class="muted small">(Business template, one per line)</span><textarea name="services" rows="3">{{ pub.services or '' }}</textarea></label>
+      <label>Links <span class="muted small">(one per line: Name | https://…)</span><textarea name="links" rows="3" placeholder="Instagram | https://instagram.com/you">{{ pub.links or '' }}</textarea></label>
+    </div>
+    <div><button class="btn primary">Publish</button></div>
+  </form>
+</section>
+{% endblock %}

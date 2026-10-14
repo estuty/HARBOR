@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Email · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+{% if not d %}
+<section class="card narrow">
+  <h2>Email for {{ site.domain }}</h2>
+  <p class="muted">Create addresses like <code>you@{{ site.domain }}</code>, with spam filtering, DKIM signing, webmail and IMAP/POP3/SMTP for any mail app.</p>
+  <form method="post" action="/sites/{{ site.id }}/mail/enable"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary">Turn on email</button></form>
+</section>
+{% else %}
+
+<section class="card flush">
+  <div class="card-head row between">
+    <h2>Mailboxes</h2>
+    <a class="btn" href="{{ webmail }}" target="_blank" rel="noopener">Open webmail ↗</a>
+  </div>
+  {% if boxes %}
+  <table class="table">
+    <thead><tr><th>Address</th><th>Storage</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for b in boxes %}
+    <tr>
+      <td><a class="strong" href="/sites/{{ site.id }}/mail/boxes/{{ b.id }}">{{ b.local }}@{{ d.domain }}</a></td>
+      <td class="nowrap">
+        {% set used = usage.get(b.id) %}
+        {% if used is not none and b.quota_mb %}<progress max="{{ b.quota_mb }}" value="{{ (used / 1048576)|round(1) }}"></progress>
+        <span class="muted small">{{ used|filesize }} of {{ b.quota_mb }} MB</span>
+        {% elif used is not none %}<span class="muted small">{{ used|filesize }} · no limit</span>
+        {% else %}<span class="muted small">{{ (b.quota_mb ~ ' MB quota') if b.quota_mb else 'No limit' }}</span>{% endif %}
+      </td>
+      <td>{% if not b.enabled %}<span class="pill bad">Login suspended</span>{% else %}<span class="pill ok">Active</span>{% endif %}
+          {% if b.auto_on %}<span class="pill warn">Auto-reply on</span>{% endif %}</td>
+      <td class="actions"><a class="linkish" href="/sites/{{ site.id }}/mail/boxes/{{ b.id }}">Manage</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No mailboxes yet.</div>{% endif %}
+  <form method="post" action="/sites/{{ site.id }}/mail/boxes" class="row wrap card-foot">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span class="prefix grow"><input name="local" placeholder="info" required aria-label="Address"><code>@{{ d.domain }}</code></span>
+    <input type="password" name="password" placeholder="Password (blank = generate)" autocomplete="new-password" aria-label="Password">
+    <select name="quota" aria-label="Quota"><option value="512">512 MB</option><option value="1024" selected>1 GB</option><option value="5120">5 GB</option><option value="10240">10 GB</option><option value="51200">50 GB</option><option value="0">No limit</option></select>
+    <button class="btn primary">Create mailbox</button>
+  </form>
+</section>
+
+<section class="grid-2">
+  <div class="card" id="forwarders">
+    <h2>Forwarders</h2>
+    <p class="muted">Send mail for an address on to other addresses. Forwarding from an existing mailbox keeps a copy in it.</p>
+    {% if fwds %}
+    <ul class="site-list">{% for f in fwds %}
+      <li><span><strong>{{ f.local }}@{{ d.domain }}</strong> → <span class="wrap">{{ f.destinations.replace(',', ', ') }}</span></span>
+        <form method="post" action="/sites/{{ site.id }}/mail/forwarders/{{ f.id }}/delete" data-confirm="Remove this forwarder?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Remove</button></form></li>
+    {% endfor %}</ul>
+    {% endif %}
+    <form method="post" action="/sites/{{ site.id }}/mail/forwarders" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <span class="prefix"><input name="local" placeholder="sales" required aria-label="Address"><code>@{{ d.domain }}</code></span>
+      <input name="destinations" placeholder="anna@gmail.com, team@example.org" required aria-label="Destinations">
+      <div><button class="btn">Add forwarder</button></div>
+    </form>
+  </div>
+  <div class="card" id="catchall">
+    <h2>Catch-all</h2>
+    <p class="muted">What happens to mail sent to an address that doesn't exist?</p>
+    <form method="post" action="/sites/{{ site.id }}/mail/catchall" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="check"><input type="radio" name="mode" value="bounce" {{ 'checked' if not d.catch_all }}> Reject it (recommended: less spam)</label>
+      <label class="check"><input type="radio" name="mode" value="forward" {{ 'checked' if d.catch_all }}> Deliver it to</label>
+      <input name="target" value="{{ d.catch_all or '' }}" placeholder="info@{{ d.domain }}" aria-label="Catch-all address">
+      <div><button class="btn">Save</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Connect a mail app</h2>
+  <dl class="kv">
+    <dt>Incoming (IMAP)</dt><dd><code>{{ mail_host }}</code> port 993, SSL/TLS</dd>
+    <dt>Incoming (POP3)</dt><dd><code>{{ mail_host }}</code> port 995, SSL/TLS</dd>
+    <dt>Outgoing (SMTP)</dt><dd><code>{{ mail_host }}</code> port 465 SSL/TLS, or 587 STARTTLS</dd>
+    <dt>Username</dt><dd>The full email address</dd>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>DNS records for email</h2>
+  {% if zone %}
+  <p><span class="pill ok">Managed</span> This domain's DNS is hosted here and these records were added automatically. <a href="/dns/{{ zone.id }}">View zone →</a></p>
+  {% else %}
+  <p class="muted">Your DNS is hosted elsewhere. Add these records at your DNS provider so mail is delivered and isn't marked as spam. The mail host <code>{{ mail_host }}</code> needs an A record pointing to this server.</p>
+  {% endif %}
+  <div class="table-wrap">
+  <table class="table compact">
+    <thead><tr><th>Type</th><th>Name</th><th>Value</th><th></th></tr></thead>
+    <tbody>
+    {% for t, n, v in recs %}
+    <tr><td>{{ t }}</td><td><code>{{ n }}</code></td><td><code class="wrap small">{{ v }}</code></td><td><button type="button" class="copy" data-copy="{{ v }}">Copy</button></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if is_admin %}
+<section class="card danger-zone">
+  <h2>Turn off email</h2>
+  <p class="muted">Deletes every mailbox and all stored mail for {{ d.domain }}.</p>
+  <form method="post" action="/sites/{{ site.id }}/mail/disable" class="row narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="confirm" placeholder="Type {{ site.domain }} to confirm" autocomplete="off" aria-label="Confirm domain">
+    <button class="btn danger">Turn off email</button>
+  </form>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

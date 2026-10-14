@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ z.domain }} · DNS{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><p class="crumb"><a href="/dns">DNS</a> /</p><h1>{{ z.domain }}</h1>
+    <p class="muted">Name servers: {% for n in ns %}<code>{{ n }}</code>{{ ', ' if not loop.last }}{% endfor %} · serial <code>{{ z.serial }}</code></p></div>
+  {% if z.site_id %}<a class="btn" href="/sites/{{ z.site_id }}">Site ↗</a>{% endif %}
+</header>
+
+<section class="card flush">
+  <div class="table-wrap">
+  <table class="table dns">
+    <thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th></th></tr></thead>
+    <tbody>
+    {% for r in records %}
+    {% if edit == r.id %}
+    <tr class="editing">
+      <td colspan="5">
+        <form method="post" action="/dns/{{ z.id }}/records/{{ r.id }}" class="row wrap">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input name="name" value="{{ r.name }}" class="w-name" aria-label="Name">
+          <span class="pill">{{ r.type }}</span>
+          {% if r.type in ('MX', 'SRV') %}<input name="priority" value="{{ r.priority }}" class="w-num" aria-label="Priority">{% endif %}
+          <input name="content" value="{{ r.content }}" class="grow" aria-label="Value">
+          <input name="ttl" value="{{ r.ttl }}" class="w-num" aria-label="TTL">
+          <button class="btn primary">Save</button>
+          <a class="btn" href="/dns/{{ z.id }}">Cancel</a>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td><code>{{ r.name }}</code></td>
+      <td><span class="pill">{{ r.type }}</span></td>
+      <td><code class="wrap small">{% if r.priority is not none %}{{ r.priority }} {% endif %}{{ r.content }}</code>
+        {% if r.managed %}<span class="muted small">· {{ 'Dynamic DNS' if r.managed.startswith('ddns') else r.managed }}</span>{% endif %}</td>
+      <td class="muted">{{ r.ttl }}</td>
+      <td class="actions">
+        <a class="linkish" href="/dns/{{ z.id }}?edit={{ r.id }}">Edit</a>
+        <form method="post" action="/dns/{{ z.id }}/records/{{ r.id }}/delete" data-confirm="Delete this {{ r.type }} record?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form>
+      </td>
+    </tr>
+    {% endif %}
+    {% else %}
+    <tr><td colspan="5" class="empty">No records.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <form method="post" action="/dns/{{ z.id }}/records" class="row wrap card-foot">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="name" placeholder="@ or www" class="w-name" required aria-label="Name">
+    <select name="type" aria-label="Type">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select>
+    <input name="priority" placeholder="Prio" class="w-num" aria-label="Priority (MX/SRV)">
+    <input name="content" placeholder="Value, e.g. 203.0.113.10" class="grow" required aria-label="Value">
+    <input name="ttl" value="3600" class="w-num" aria-label="TTL">
+    <button class="btn primary">Add record</button>
+  </form>
+</section>
+
+<section class="card" id="ddns">
+  <h2>Dynamic DNS</h2>
+  <p class="muted">Keep a name like <code>home.{{ z.domain }}</code> pointing at a connection whose IP changes. Your router or a small script calls the update URL.</p>
+  {% if ddns %}
+  <table class="table compact">
+    <tbody>
+    {% for h in ddns %}
+    <tr><td><strong>{{ h.name }}.{{ z.domain }}</strong><div class="muted small">{{ h.description }}</div></td>
+      <td><code>{{ h.last_ip or 'never updated' }}</code></td><td class="muted small">{{ h.last_update or '' }}</td>
+      <td class="actions"><form method="post" action="/dns/{{ z.id }}/ddns/{{ h.id }}/delete" data-confirm="Remove Dynamic DNS for {{ h.name }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Remove</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="/dns/{{ z.id }}/ddns" class="row wrap">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span class="prefix"><input name="name" placeholder="home" required aria-label="Name"><code>.{{ z.domain }}</code></span>
+    <input name="description" placeholder="Description (optional)" aria-label="Description">
+    <button class="btn">Create update key</button>
+  </form>
+  <p class="muted small">Example cron entry on the remote machine: <code>*/5 * * * * curl -fsS "{{ base_url }}/ddns/update?token=YOUR_TOKEN"</code>. The caller's IP is used; add <code>&amp;ip=</code> to set one explicitly.</p>
+</section>
+
+{% if is_admin %}
+<section class="card danger-zone">
+  <h2>Delete zone</h2>
+  <form method="post" action="/dns/{{ z.id }}/delete" class="row narrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="confirm" placeholder="Type {{ z.domain }} to confirm" autocomplete="off" aria-label="Confirm">
+    <button class="btn danger">Delete zone</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

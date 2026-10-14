@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Databases · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<section class="card flush">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>Database</th><th>User</th><th>Size</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><code>{{ r.name }}</code></td>
+      <td><code>{{ r.username }}</code></td>
+      <td>{{ sizes.get(r.name, 0)|filesize }}</td>
+      <td class="muted">{{ r.created_at[:10] }}</td>
+      <td class="actions">
+        <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/reset" data-confirm="Generate a new password for {{ r.username }}? Apps using the old one will stop connecting.">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">New password</button></form>
+        <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/delete" data-confirm="Permanently delete {{ r.name }} and all its data?">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No databases for this site yet.</div>
+  {% endif %}
+</section>
+
+<section class="card narrow">
+  <h2>New database</h2>
+  <p class="muted">A user with the same name and full access to it is created automatically. Host is <code>localhost</code>.</p>
+  <form method="post" action="/sites/{{ site.id }}/databases" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span class="prefix"><code>{{ site.sysuser }}_</code><input name="name" placeholder="wordpress" required pattern="[a-z0-9_]{1,24}" aria-label="Database name"></span>
+    <button class="btn primary">Create</button>
+  </form>
+</section>
+{% endblock %}

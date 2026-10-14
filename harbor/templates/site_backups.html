@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Backups · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+{% if running or uploading %}<span data-autorefresh="4"></span>{% endif %}
+
+<section class="grid-2">
+  <div class="card">
+    <h2>Back up now</h2>
+    <p class="muted">One <code>.tar.gz</code> with the site's files and an SQL dump of each of its databases.</p>
+    <form method="post" action="/sites/{{ site.id }}/backups">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn primary" {{ 'disabled' if running }}>{{ 'Working…' if running else 'Back up now' }}</button>
+    </form>
+    <h3>Upload a backup</h3>
+    <form method="post" action="/sites/{{ site.id }}/backups/upload" enctype="multipart/form-data" class="row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="file" name="archive" accept=".gz,.tar.gz" required aria-label="Backup file">
+      <button class="btn">Upload</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Automatic backups</h2>
+    <form method="post" action="/sites/{{ site.id }}/backups/schedule" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>How often
+        <select name="freq">
+          <option value="off" {{ 'selected' if sched.freq == 'off' }}>Off</option>
+          <option value="daily" {{ 'selected' if sched.freq == 'daily' }}>Daily</option>
+          <option value="weekly" {{ 'selected' if sched.freq == 'weekly' }}>Weekly</option>
+        </select>
+      </label>
+      <label>Keep the most recent<input type="number" name="keep" min="1" max="60" value="{{ sched.keep }}"></label>
+      <p class="muted small">Older automatic backups are deleted. Manual and uploaded backups are never deleted automatically.</p>
+      <div><button class="btn">Save schedule</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="card flush">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>Created</th><th>File</th><th>Size</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for b in rows %}
+    <tr>
+      <td class="nowrap">{{ b.created_at }}<div class="muted small">{{ b.kind }}</div></td>
+      <td><code class="wrap">{{ b.filename or '—' }}</code>{% if b.status == 'done' and b.filename not in local_names %}<div class="muted small">File missing on this server{{ ', bring it back from offsite below' if offsite_on }}</div>{% endif %}</td>
+      <td>{{ b.size|filesize if b.status == 'done' else '' }}
+        {% if b.remote_status == 'uploaded' %}<div><span class="pill ok" title="{{ b.remote_key }}">Offsite</span></div>
+        {% elif b.remote_status == 'uploading' %}<div><span class="pill warn">Copying offsite</span></div>
+        {% elif b.remote_status == 'failed' %}<div><span class="pill bad" title="{{ b.remote_error }}">Offsite failed</span></div>{% endif %}</td>
+      <td>
+        {% if b.status == 'done' %}<span class="pill ok">Ready</span>
+        {% elif b.status == 'running' %}<span class="pill warn">Backing up</span>
+        {% elif b.status == 'restoring' %}<span class="pill warn">Restoring</span>
+        {% else %}<span class="pill bad">Failed</span>{% endif %}
+        {% if b.error %}<div class="muted small">{{ b.error }}</div>{% endif %}
+      </td>
+      <td class="actions">
+        {% if b.status == 'done' and b.filename in local_names %}
+        <a class="linkish" href="/sites/{{ site.id }}/backups/{{ b.id }}/download">Download</a>
+        {% if offsite_on and b.remote_status not in ('uploaded', 'uploading') %}<form method="post" action="/sites/{{ site.id }}/backups/{{ b.id }}/offsite"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">Copy offsite</button></form>{% endif %}
+        <details class="inline">
+          <summary class="linkish">Restore</summary>
+          <form method="post" action="/sites/{{ site.id }}/backups/{{ b.id }}/restore" class="pop stack" data-confirm="Restore from this backup? Current files and/or database contents will be replaced.">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <label class="check"><input type="checkbox" name="files" value="1" checked> Website files (public/)</label>
+            {% for name in contents.get(b.id, []) %}
+            <label class="check"><input type="checkbox" name="dbs" value="{{ name }}" {{ 'checked' if name in owned else 'disabled' }}> Database <code>{{ name }}</code>{% if name not in owned %} <span class="muted small">(create it first)</span>{% endif %}</label>
+            {% endfor %}
+            <button class="btn primary">Restore</button>
+          </form>
+        </details>
+        {% endif %}
+        {% if b.status not in ('running', 'restoring') %}
+        <form method="post" action="/sites/{{ site.id }}/backups/{{ b.id }}/delete" data-confirm="Delete this backup?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No backups yet.</div>
+  {% endif %}
+</section>
+{% if offsite_on %}
+<section class="card">
+  <h2>Offsite copies</h2>
+  {% if offsite_error %}<p class="flash error">Couldn't list offsite backups: {{ offsite_error }}</p>
+  {% elif remote %}
+  <p class="muted">Stored in your offsite bucket. To restore one, bring it back to this server first.</p>
+  <table class="table compact">
+    <tbody>
+    {% for o in remote %}
+    <tr><td class="nowrap muted">{{ o.modified.strftime('%Y-%m-%d %H:%M') }}</td><td><code class="small">{{ o.name }}</code></td><td>{{ o.size|filesize }}</td>
+      <td class="actions">{% if o.name in local_names %}<span class="muted small">also on this server</span>{% else %}
+        <form method="post" action="/sites/{{ site.id }}/backups/offsite/fetch" data-busy="Downloading…"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="key" value="{{ o.key }}"><button class="linkish">Bring back to server</button></form>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No offsite copies yet.</p>{% endif %}
+</section>
+{% elif is_admin %}
+<p class="muted small">Tip: copy backups to another provider automatically in <a href="/settings/backups">Settings → Offsite backups</a>.</p>
+{% endif %}
+{% endblock %}

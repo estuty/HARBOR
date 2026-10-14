@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><h1>{{ stats.hostname }}</h1><p class="muted">Up {{ stats.uptime|duration }} · {{ stats.cores }} CPU cores</p></div>
+  <a class="btn primary" href="/sites#new">Add site</a>
+</header>
+
+{% if setup_needed %}
+<div class="callout">
+  <strong>Finish setting up the server.</strong>
+  Set the host name and name servers so email, DNS and a trusted panel certificate can work.
+  <a href="/settings">Open settings →</a>
+</div>
+{% endif %}
+
+{% if alerts %}
+<section class="card alert-list">
+  <div class="row between"><h2>Needs attention</h2><a class="more" href="/settings/alerts">Alert settings →</a></div>
+  <ul>{% for a in alerts %}<li class="sev-{{ a.severity }}"><strong>{{ a.title }}</strong><span class="muted small">{{ a.detail }} · since {{ a.first_seen }} UTC</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% if no_2fa %}
+<div class="callout"><strong>Your account doesn't use two-factor sign-in.</strong> A stolen password would give full control of this server. <a href="/account#twofactor">Set it up →</a></div>
+{% endif %}
+
+<section class="meters" id="live-stats">
+  <div class="card meter">
+    <span class="label">CPU</span>
+    <span class="value" data-stat="cpu">{{ stats.cpu|round|int }}%</span>
+    <progress max="100" value="{{ stats.cpu }}" data-bar="cpu"></progress>
+    <span class="sub" data-stat="load">Load {{ '%.2f'|format(stats.load[0]) }} · {{ '%.2f'|format(stats.load[1]) }} · {{ '%.2f'|format(stats.load[2]) }}</span>
+  </div>
+  <div class="card meter">
+    <span class="label">Memory</span>
+    <span class="value" data-stat="mem">{{ stats.mem_pct|round|int }}%</span>
+    <progress max="100" value="{{ stats.mem_pct }}" data-bar="mem"></progress>
+    <span class="sub" data-stat="memsub">{{ stats.mem_used|filesize }} of {{ stats.mem_total|filesize }}</span>
+  </div>
+  <div class="card meter">
+    <span class="label">Disk</span>
+    <span class="value" data-stat="disk">{{ stats.disk_pct|round|int }}%</span>
+    <progress max="100" value="{{ stats.disk_pct }}" data-bar="disk"></progress>
+    <span class="sub" data-stat="disksub">{{ stats.disk_used|filesize }} of {{ stats.disk_total|filesize }}</span>
+  </div>
+</section>
+
+<section class="grid-2">
+  <div class="card">
+    <h2>At a glance</h2>
+    <dl class="counts">
+      <div><dt>Sites</dt><dd>{{ counts.sites }}</dd></div>
+      <div><dt>With HTTPS</dt><dd>{{ counts.ssl }}</dd></div>
+      <div><dt>Databases</dt><dd>{{ counts.databases }}</dd></div>
+      <div><dt>Mailboxes</dt><dd>{{ counts.mailboxes }}</dd></div>
+      <div><dt>DNS zones</dt><dd>{{ counts.zones }}</dd></div>
+      <div><dt>Apps</dt><dd>{{ counts.apps }}</dd></div>
+    </dl>
+    <h3>Services</h3>
+    <ul class="services">
+      {% for name, state in services.items() %}
+      <li><span class="dot {{ 'ok' if state == 'active' else 'bad' }}"></span>{{ name }}<span class="muted">{{ state }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card">
+    <h2>Sites</h2>
+    {% if sites %}
+    <ul class="site-list">
+      {% for s in sites %}
+      <li><a href="/sites/{{ s.id }}">{{ s.domain }}</a>
+        <span class="pill {{ 'ok' if s.ssl else '' }}">{{ 'HTTPS' if s.ssl else 'HTTP' }}</span>
+        <span class="muted">PHP {{ s.php_version }}</span></li>
+      {% endfor %}
+    </ul>
+    <a class="more" href="/sites">All sites →</a>
+    {% else %}
+    <div class="empty">No sites yet. <a href="/sites#new">Add your first site</a> to get a web root, PHP pool, nginx config and DNS zone in one step.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Recent activity</h2>
+  {% include "_activity_rows.html" %}
+  <a class="more" href="/activity">Full log →</a>
+</section>
+{% endblock %}

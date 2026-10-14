@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Cron · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<section class="card flush">
+  {% if jobs %}
+  <table class="table">
+    <thead><tr><th>Schedule</th><th>Command</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for j in jobs %}
+    <tr class="{{ '' if j.enabled else 'dim' }}">
+      <td class="nowrap"><code>{{ j.schedule }}</code></td>
+      <td><code class="wrap">{{ j.command }}</code></td>
+      <td><span class="pill {{ 'ok' if j.enabled else '' }}">{{ 'Active' if j.enabled else 'Paused' }}</span></td>
+      <td class="actions">
+        <form method="post" action="/sites/{{ site.id }}/cron/{{ j.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">{{ 'Pause' if j.enabled else 'Resume' }}</button></form>
+        <form method="post" action="/sites/{{ site.id }}/cron/{{ j.id }}/delete" data-confirm="Remove this cron job?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish danger">Delete</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No scheduled jobs.</div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Add a job</h2>
+  <p class="muted">Runs as <code>{{ site.sysuser }}</code>. Example: <code>{{ php_bin }} {{ root }}/public/wp-cron.php</code></p>
+  <form method="post" action="/sites/{{ site.id }}/cron" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row wrap">
+      <label class="grow-0">Schedule
+        <input name="schedule" id="cron-schedule" placeholder="*/15 * * * *" required spellcheck="false" list="cron-presets">
+      </label>
+      <datalist id="cron-presets">
+        <option value="* * * * *">Every minute</option>
+        <option value="*/5 * * * *">Every 5 minutes</option>
+        <option value="*/15 * * * *">Every 15 minutes</option>
+        <option value="@hourly">Hourly</option>
+        <option value="@daily">Daily at midnight</option>
+        <option value="0 3 * * 0">Weekly (Sunday 03:00)</option>
+      </datalist>
+      <label class="grow">Command<input name="command" required spellcheck="false" placeholder="php {{ root }}/public/artisan schedule:run"></label>
+    </div>
+    <div><button class="btn primary">Add job</button></div>
+  </form>
+</section>
+{% endblock %}

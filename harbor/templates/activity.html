@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Activity</h1><p class="muted">Every change made through the panel, newest first (times in UTC).</p></div></header>
+<section class="card">{% with activity=rows %}{% include "_activity_rows.html" %}{% endwith %}</section>
+{% endblock %}
