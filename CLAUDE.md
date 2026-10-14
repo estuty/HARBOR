@@ -24,7 +24,7 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
 ## Tests
 
 ```bash
-pip install -r requirements.txt pytest httpx
+pip install -r requirements.txt pytest httpx moto
 python -m pytest -q tests          # dry-run: HARBOR_DRY_RUN=1 sandboxes every path, records commands in runner.DRY_LOG
 ```
 

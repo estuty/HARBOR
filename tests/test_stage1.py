@@ -152,7 +152,8 @@ def test_offsite_backups():
         db.set_setting("offsite_bucket", "")
 
 
-def test_alerts():
+def test_alerts(monkeypatch):
+    from types import SimpleNamespace
     from harbor.services import alerts
     c = login()
     post(c, "/settings/alerts", {"alert_email": "ops@example.org", "alert_webhook": "https://hooks.slack.com/services/x",
@@ -171,7 +172,9 @@ def test_alerts():
     alerts.resolve("test:x")
     assert any("Resolved: Something broke" in l for l in runner.DRY_LOG[n:])
     assert not alerts.active()
-    # disk check with a threshold that is always exceeded
+    # disk check against a half-full disk, so the result doesn't depend on the machine running the tests
+    monkeypatch.setattr(alerts.psutil, "disk_usage",
+                        lambda _: SimpleNamespace(percent=50.0, total=100e9, used=50e9, free=50e9))
     db.set_setting("alert_disk_pct", "1")
     alerts.check_disk()
     assert any(a["key"] == "disk:/" for a in alerts.active())

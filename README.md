@@ -214,7 +214,7 @@ Command line (`cd /opt/harbor && sudo venv/bin/python -m harbor …`):
 ## Development
 
 ```bash
-pip install -r requirements.txt pytest httpx
+pip install -r requirements.txt pytest httpx moto
 python -m pytest -q tests                      # dry-run tests: no system changes
 HARBOR_DRY_RUN=1 python -m harbor create-admin admin --password 'long-password-here'
 HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
