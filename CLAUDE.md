@@ -2,7 +2,7 @@
 
 Self-hosted hosting control panel (cPanel alternative) for one Ubuntu/Debian server. Python 3 + FastAPI,
 server-rendered Jinja2 templates, SQLite. The panel runs as root (it creates users and manages services)
-on 127.0.0.1:8090 behind nginx TLS on port 8443. `website/` is the separate static marketing site.
+on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in its own repository.
 
 ## Layout
 
@@ -38,8 +38,3 @@ Run a dev panel without touching the system:
 HARBOR_DRY_RUN=1 python -m harbor create-admin admin --password 'long-password-here'
 HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
 ```
-
-## Website
-
-`website/` is static (no build). `python3 website/build_docs.py` regenerates `docs.html` from README.md
-(needs `pip install markdown`). Screenshots in `website/assets/screens/` are real panel captures.
