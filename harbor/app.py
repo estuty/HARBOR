@@ -106,5 +106,6 @@ for r in (core, sites, webrules, mail, dns, apps, api, admin, imports, health, d
 async def _start_scheduler():
     if os.environ.get("HARBOR_SCHEDULER", "1") == "1":
         backups.start_scheduler()
-        from .services import alerts
+        from .services import alerts, updates
         alerts.start_monitor()
+        updates.start_checker()

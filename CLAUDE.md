@@ -30,7 +30,7 @@ python -m pytest -q tests          # dry-run: HARBOR_DRY_RUN=1 sandboxes every p
 
 `tests/integration/run_*.py` exercise a real server end to end (run as root on a test VPS after `./install.sh`):
 `run_live.py PASSWORD`, `run_stage1.py PASSWORD harbor.tar.gz`, `run_stage2.py PASSWORD [flat|nested]`,
-`run_deploy.py PASSWORD`, `run_dbeditor.py PASSWORD`.
+`run_deploy.py PASSWORD`, `run_dbeditor.py PASSWORD`, `run_updates.py PASSWORD`.
 
 Run a dev panel without touching the system:
 
@@ -38,3 +38,9 @@ Run a dev panel without touching the system:
 HARBOR_DRY_RUN=1 python -m harbor create-admin admin --password 'long-password-here'
 HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
 ```
+
+## Releases
+
+Bump `__version__` in `harbor/__init__.py` and merge to `main`: `.github/workflows/release.yml` runs the tests,
+then publishes release `vX.Y.Z` with `harbor-X.Y.Z.tar.gz`. Panels check `estuty/HARBOR`'s latest release every
+6 hours, notify admins, and offer one-click "Update now" (the installer runs by itself when `SYSTEM_VERSION` went up).

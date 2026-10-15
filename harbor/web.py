@@ -1,5 +1,6 @@
 """Shared web helpers: templates, flash messages, one-time secrets, CSRF and
 the current principal (logged-in user or API token owner)."""
+import re
 import secrets
 import time
 from pathlib import Path
@@ -8,6 +9,7 @@ from urllib.parse import quote
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 
 from . import __version__, auth, config, db, validators
 from .services import OpError
@@ -33,6 +35,38 @@ def duration(seconds) -> str:
     return f"{d}d {h}h" if d else f"{h}h {s // 60}m"
 
 
+def release_notes(text) -> Markup:
+    """Release notes (GitHub Markdown) as a small, safe subset of HTML: headings,
+    bullet lists, **bold**, `code` and links. Everything else stays plain text."""
+    out, in_list = [], False
+
+    def inline(t: str) -> str:
+        t = str(escape(t))
+        t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
+        t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+        t = re.sub(r"\[([^\]]+)\]\((https?://[^\s)\"]+)\)", r'<a href="\2" target="_blank" rel="noopener">\1</a>', t)
+        return re.sub(r"(?<![\"=>])(https?://[^\s<\"]+)", r'<a href="\1" target="_blank" rel="noopener">\1</a>', t)
+
+    for line in str(text or "").splitlines():
+        line = line.rstrip()
+        bullet = re.match(r"^\s*[-*+]\s+(.*)", line)
+        if in_list and not bullet:
+            out.append("</ul>"); in_list = False
+        if bullet:
+            if not in_list:
+                out.append("<ul>"); in_list = True
+            out.append(f"<li>{inline(bullet.group(1))}</li>")
+        elif m := re.match(r"^#{1,6}\s+(.*)", line):
+            out.append(f"<h4>{inline(m.group(1))}</h4>")
+        elif line.strip():
+            out.append(f"<p>{inline(line)}</p>")
+    if in_list:
+        out.append("</ul>")
+    return Markup("\n".join(out))
+
+
+templates.env.filters["release_notes"] = release_notes
+templates.env.filters["day"] = lambda s: str(s or "")[:10]
 templates.env.filters["filesize"] = filesize
 templates.env.filters["duration"] = duration
 templates.env.filters["urlq"] = lambda s: quote(s or "", safe="/")
@@ -87,6 +121,9 @@ def render(request: Request, name: str, **ctx) -> HTMLResponse:
     if token and token in _reveals:
         secret = _reveals.pop(token)[1]
     p = principal(request)
+    if p.get("role") == "admin" and "update_available" not in ctx:
+        from .services import updates
+        ctx["update_available"] = updates.available()
     ctx.update(request=request, user=p.get("user"), role=p.get("role"), is_admin=p.get("role") == "admin",
                flashes=msgs, secret=secret, csrf=auth.csrf_token(request.session), path=request.url.path,
                features=config.features())

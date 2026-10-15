@@ -6,6 +6,18 @@
   <a class="btn primary" href="/sites#new">Add site</a>
 </header>
 
+{% if update_available %}
+<div class="update-banner">
+  <div><strong>Harbor {{ update_available.version }} is available.</strong>
+    <span class="muted">You're running {{ version }}.{% if update_available.published %} Released {{ update_available.published|day }}.{% endif %}</span></div>
+  <div class="row">
+    <a class="btn" href="/settings/updates">What's new</a>
+    <form method="post" action="/settings/updates/latest" data-busy="Starting update…" data-confirm="Update Harbor to {{ update_available.version }} now? The panel restarts for a moment; your sites keep running. If anything goes wrong, Harbor goes back to {{ version }} by itself.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary">Update now</button></form>
+  </div>
+</div>
+{% endif %}
+
 {% if setup_needed %}
 <div class="callout">
   <strong>Finish setting up the server.</strong>

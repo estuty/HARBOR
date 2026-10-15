@@ -44,7 +44,7 @@ Stack: **Nginx + PHP-FPM + MariaDB**, **Postfix + Dovecot + Rspamd** (mail), **B
 | Backup to remote destinations | Offsite copies to any S3-compatible storage (Spaces, B2, S3, Wasabi, R2), retention, restore from offsite |
 | Contact information / notifications | Alerts by email (any SMTP) or webhook (Slack, Discord, ntfy): disk, services, certificates, sites down, stuck mail, backups, disk allowance |
 | Resource usage limits (CloudLinux LVE) | Per-site CPU, memory and PHP-process limits enforced by systemd cgroups; disk allowance |
-| Updates | Upload or link a new version; automatic rollback if it fails; roll back to saved versions |
+| Updates | Notifies you of new releases (panel, email, webhook); one-click update; automatic rollback if it fails; roll back to saved versions |
 | Audit log | Activity page records every change |
 | Git Version Control | **Deploy** tab per site: connect a GitHub/GitLab/Gitea/Bitbucket repository (deploy key for private ones), build command run as the site user, kept paths (uploads, `.env`), push-to-deploy webhook, deploy history with one-click rollback, API trigger for CI |
 | Transfer Tool / Restore a full backup | **Move from cPanel**: upload (any size), link or scp a cPanel account backup; review the plan; one click brings sites, files, databases (users keep their passwords), mailboxes (keep passwords, all mail and folders), forwarders, catch-all, autoresponders, DNS zones (repointed here) and cron jobs |
@@ -136,12 +136,20 @@ The old account is never touched.
 
 ## Updating
 
-**Settings → Updates**: upload the new `harbor.tar.gz` (or paste a link). Harbor saves the current
-code and database, installs, restarts and checks that the panel answers. If anything fails it puts the
-previous version back by itself. From SSH: `sudo /opt/harbor/venv/bin/python -m harbor update harbor.tar.gz`.
+Harbor checks for a new release every 6 hours. When one is out, the dashboard shows a banner with
+**Update now**, Settings gets an "Update" badge, and admins are told by email or webhook (whatever is set
+under Settings → Alerts), once per release. **Settings → Updates** shows the release notes and has
+**Check now** and the update settings (turn checking or notifications off).
 
-If the update notes say a release changes server components, also run
-`sudo bash /opt/harbor/source/install.sh` once (safe to re-run; keeps data and settings).
+Updating saves the current code and database, installs, restarts and checks that the panel answers. If
+anything fails it puts the previous version back by itself. When a release also changes server components,
+the installer runs automatically as part of the update (it keeps data and settings).
+
+You can also upload a `harbor.tar.gz` (or paste a link) on the same page, or from SSH:
+`sudo /opt/harbor/venv/bin/python -m harbor update harbor.tar.gz`.
+
+Servers installed before 0.7.0 don't have update checks yet: update once by hand: in the folder you cloned
+Harbor into, run `git pull && sudo ./install.sh` (or upload the 0.7.0 package on Settings → Updates).
 
 ## Ports
 

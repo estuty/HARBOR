@@ -113,6 +113,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const r = await fetch("/settings/updates/status", { credentials: "same-origin" });
       if (!r.ok) return;
       const s = await r.json();
+      const logEl = document.querySelector("details.update pre.log");
+      if (logEl && s.log) { logEl.textContent = s.log; logEl.scrollTop = logEl.scrollHeight; }
       if (!["queued", "running"].includes(s.status)) location.reload();
     } catch { /* panel is restarting */ }
   }, 4000);
