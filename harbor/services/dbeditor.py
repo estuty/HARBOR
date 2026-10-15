@@ -54,7 +54,7 @@ def open_editor(site_id: int, db_id: int, actor: str) -> str:
     try:
         mysql.grant(user, row["name"])
         token = secrets.token_urlsafe(32)
-        _write_token(token, {"username": user, "password": password, "db": row["name"],
+        _write_token(token, {"username": user, "password": password, "db": row["name"], "site_id": site_id,
                              "expires": int(_now().timestamp()) + TOKEN_TTL})
     except Exception:
         mysql.drop_user(user)

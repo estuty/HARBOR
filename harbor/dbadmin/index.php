@@ -22,6 +22,14 @@ function harbor_page(int $code, string $title, string $text): void {
     exit;
 }
 
+// the Harbor look (served from here because nginx only routes /dbadmin/ to this file)
+if (isset($_GET['harbor_css'])) {
+    header('Content-Type: text/css; charset=utf-8');
+    header('Cache-Control: max-age=86400');
+    readfile(__DIR__ . '/harbor.css');
+    exit;
+}
+
 if (!is_file(HARBOR_ADMINER)) {
     harbor_page(503, 'Database editor not installed', 'Run <code>sudo bash /opt/harbor/source/install.sh</code> on the server to add it.');
 }
@@ -41,6 +49,10 @@ if (isset($_GET['harbor'])) {
         harbor_page(403, 'This link has expired', "Links from the panel work once, for two minutes. Go back to the site's Databases tab and click Open again.");
     }
     // hand Adminer a login form submission, then let it redirect to the database
+    // remember which site this came from, for the "back to Harbor" link
+    setcookie('harbor_site', (string) (int) ($login['site_id'] ?? 0),
+              ['path' => '/dbadmin/', 'secure' => true, 'httponly' => true, 'samesite' => 'Strict']);
+    $_COOKIE['harbor_site'] = (string) (int) ($login['site_id'] ?? 0);
     $_POST = ['auth' => ['driver' => 'server', 'server' => '', 'username' => $login['username'],
                          'password' => $login['password'], 'db' => $login['db'], 'permanent' => '']];
     $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -52,7 +64,16 @@ if (isset($_GET['harbor'])) {
 function adminer_object() {
     class HarborAdminer extends \Adminer\Adminer {
         function name() {
-            return "<a href='/sites' id='h1' title='Back to Harbor'>Harbor</a>";
+            $site = (int) ($_COOKIE['harbor_site'] ?? 0);
+            $back = $site ? "/sites/$site/databases" : '/sites';
+            return "<a href='$back' id='h1' title='Back to Harbor'>"
+                 . "<svg viewBox='0 0 32 32' aria-hidden='true'><rect width='32' height='32' rx='7' fill='#0d2a33'/>"
+                 . "<g fill='none' stroke='#5fd3c0' stroke-width='2.4' stroke-linecap='round'><circle cx='16' cy='8' r='2.8'/>"
+                 . "<path d='M16 11v15M10 15h12M6.5 19c1 4.5 4.8 7 9.5 7s8.5-2.5 9.5-7'/></g></svg>"
+                 . "<span>Harbor<small>Database editor</small></span></a>";
+        }
+        function css() {
+            return ['?harbor_css=' . crc32((string) @file_get_contents(__DIR__ . '/harbor.css')) => ''];
         }
         // always the local server, whatever the URL says
         function credentials() {
@@ -66,8 +87,11 @@ function adminer_object() {
             return array_values(array_filter(\Adminer\get_databases($flush), fn($d) => !in_array($d, $hidden, true)));
         }
         function loginForm() {
-            echo "<p>Open a database from its site's <b>Databases</b> tab in Harbor. "
-               . "Editor sessions last two hours.</p><p><a href='/sites'>Go to Harbor</a></p>";
+            $site = (int) ($_COOKIE['harbor_site'] ?? 0);
+            $back = $site ? "/sites/$site/databases" : '/sites';
+            echo "<div class='message' style='color:inherit'><b>Open a database from Harbor.</b> "
+               . "On the site's Databases tab, click Open next to the database. Editor sessions last two hours.</div>"
+               . "<p><a href='$back'>Back to Harbor</a></p>";
         }
         function permanentLogin($create = false) {
             return '';
