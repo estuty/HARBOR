@@ -58,6 +58,10 @@ def drop(db: str, user: str | None) -> None:
     _sql(sql + "FLUSH PRIVILEGES;\n")
 
 
+def drop_user(user: str) -> None:
+    _sql(f"DROP USER IF EXISTS '{_check_user(user)}'@'localhost';\nFLUSH PRIVILEGES;\n")
+
+
 # ---------- used by the cPanel importer ----------
 
 def exists(db: str) -> bool:

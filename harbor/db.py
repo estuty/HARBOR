@@ -150,6 +150,13 @@ MIGRATIONS = [
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, started_at TEXT, finished_at TEXT);
     CREATE INDEX deployments_site ON deployments(site_id, id);
     """,
+    # 9: database editor (temporary MySQL users, one database each)
+    """
+    CREATE TABLE db_editor_sessions (
+        id INTEGER PRIMARY KEY, mysql_user TEXT UNIQUE NOT NULL, db_name TEXT NOT NULL,
+        site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL, actor TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, expires_at TEXT NOT NULL);
+    """,
 ]
 
 

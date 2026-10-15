@@ -30,7 +30,7 @@ python -m pytest -q tests          # dry-run: HARBOR_DRY_RUN=1 sandboxes every p
 
 `tests/integration/run_*.py` exercise a real server end to end (run as root on a test VPS after `./install.sh`):
 `run_live.py PASSWORD`, `run_stage1.py PASSWORD harbor.tar.gz`, `run_stage2.py PASSWORD [flat|nested]`,
-`run_deploy.py PASSWORD`.
+`run_deploy.py PASSWORD`, `run_dbeditor.py PASSWORD`.
 
 Run a dev panel without touching the system:
 
