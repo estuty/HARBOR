@@ -4,9 +4,49 @@
 {% include "_settings_tabs.html" %}
 {% if busy %}<span data-update-poll></span>{% endif %}
 
+<section class="card update-check">
+  {% if up.available %}
+  <div class="row between">
+    <div>
+      <h2>Harbor {{ up.available.version }} is available</h2>
+      <p class="muted">You're running {{ version }}.{% if up.available.published %} Released {{ up.available.published|day }}.{% endif %}
+        {% if up.available.page %}<a href="{{ up.available.page }}" target="_blank" rel="noopener">Release page ↗</a>{% endif %}</p>
+    </div>
+    <form method="post" action="/settings/updates/latest" data-busy="Starting update…" data-confirm="Update Harbor to {{ up.available.version }} now? The panel restarts for a moment; your sites keep running. If anything goes wrong, Harbor goes back to {{ version }} by itself.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary" {{ 'disabled' if busy }}>{{ 'Updating…' if busy else 'Update now' }}</button></form>
+  </div>
+  {% if up.available.notes %}<div class="release-notes"><h3>What's new</h3><div class="notes-text">{{ up.available.notes|release_notes }}</div></div>{% endif %}
+  <p class="muted small">Harbor saves the current version and database first and goes back to them by itself if the new version doesn't start. If the release also updates server components, the installer runs automatically.</p>
+  {% else %}
+  <div class="row between">
+    <div>
+      <h2>{% if up.error %}Couldn't check for updates{% elif up.latest %}Harbor is up to date{% else %}Updates{% endif %}</h2>
+      <p class="muted">
+        {% if up.error %}{{ up.error }}.
+        {% elif up.latest %}You're running {{ version }}, the latest release.
+        {% elif up.checked_at %}No releases are published in <code>{{ up.repo }}</code> yet. Running {{ version }}.
+        {% else %}Running {{ version }}. Harbor hasn't checked for updates yet.{% endif %}
+        {% if up.checked_at %}<span class="small">Last checked {{ up.checked_at }} UTC.</span>{% endif %}
+      </p>
+    </div>
+    <form method="post" action="/settings/updates/check" data-busy="Checking…"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Check now</button></form>
+  </div>
+  {% endif %}
+  <details class="update-prefs">
+    <summary>Update settings</summary>
+    <form method="post" action="/settings/updates/prefs" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="check"><input type="checkbox" name="check" value="1" {{ 'checked' if up.check }}><span>Check for new releases every 6 hours</span></label>
+      <label class="check"><input type="checkbox" name="notify" value="1" {{ 'checked' if up.notify }}><span>Tell me when one is available, by the email or webhook set up in <a href="/settings/alerts">Alerts</a></span></label>
+      <label>Releases from <span class="muted small">(GitHub repository)</span><input name="repo" value="{{ up.repo }}" spellcheck="false" placeholder="estuty/HARBOR"></label>
+      <div><button class="btn">Save</button></div>
+    </form>
+  </details>
+</section>
+
 <section class="grid-2">
   <div class="card">
-    <h2>Install an update</h2>
+    <h2>Install a package by hand</h2>
     <p>Running <strong>Harbor {{ version }}</strong>.</p>
     <p class="muted">Harbor saves the current version and database first. If the new version doesn't start, it automatically goes back to this one.</p>
     <form method="post" action="/settings/updates/upload" enctype="multipart/form-data" class="row" data-busy="Uploading…">
@@ -46,6 +86,7 @@
       {% if u.status == 'done' %}<span class="pill ok">Installed</span>
       {% elif u.status == 'rolled_back' %}<span class="pill bad">Failed: rolled back</span>
       {% elif u.status == 'failed' %}<span class="pill bad">Rejected</span>
+      {% elif u.status == 'attention' %}<span class="pill warn">Installed, needs attention</span>
       {% else %}<span class="pill warn">{{ u.status|capitalize }}…</span>{% endif %}
     </summary>
     <pre class="log">{{ u.log or 'Waiting for the updater to start…' }}</pre>

@@ -26,7 +26,7 @@
       <span class="nav-label">Server</span>
       <a href="/users" class="{{ 'on' if path.startswith('/users') }}">Users</a>
       <a href="/security" class="{{ 'on' if path.startswith('/security') }}">Security</a>
-      <a href="/settings" class="{{ 'on' if path.startswith('/settings') }}">Settings</a>
+      <a href="/settings" class="{{ 'on' if path.startswith('/settings') }}">Settings{% if update_available %} <span class="nav-badge" title="Harbor {{ update_available.version }} is available">Update</span>{% endif %}</a>
       <a href="/activity" class="{{ 'on' if path == '/activity' }}">Activity</a>
       {% endif %}
     </nav>
@@ -34,7 +34,7 @@
       {% if dry_run %}<span class="pill warn">Dry-run mode</span>{% endif %}
       <a class="who" href="/account">{{ user }}{% if not is_admin %} <span class="muted">(team)</span>{% endif %}</a>
       <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">Sign out</button></form>
-      <span class="ver">v{{ version }}</span>
+      <span class="ver">v{{ version }}{% if update_available %} · <a href="/settings/updates">{{ update_available.version }} available</a>{% endif %}</span>
     </div>
   </aside>
   <main class="main">

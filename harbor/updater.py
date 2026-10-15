@@ -33,6 +33,7 @@ LOG = Path(os.environ.get("HARBOR_UPDATE_LOG", "/var/log/harbor/update.log"))
 HEALTH = os.environ.get("HARBOR_HEALTH_URL", "http://127.0.0.1:8090/login")
 RESTART = os.environ.get("HARBOR_RESTART_CMD", "systemctl restart harbor").split()
 SKIP_PIP = os.environ.get("HARBOR_UPDATE_SKIP_PIP") == "1"
+SKIP_INSTALLER = os.environ.get("HARBOR_UPDATE_SKIP_INSTALLER") == "1"
 KEEP_RELEASES = 5
 
 _lines: list[str] = []
@@ -58,7 +59,7 @@ def record(update_id: int | None, status: str, to_version: str = "", from_versio
         con.execute("INSERT OR IGNORE INTO updates (id, status) VALUES (?, ?)", (update_id, status))
         con.execute("UPDATE updates SET status = ?, log = ?, to_version = COALESCE(NULLIF(?, ''), to_version), "
                     "from_version = COALESCE(NULLIF(?, ''), from_version), "
-                    "finished_at = CASE WHEN ? IN ('done', 'rolled_back', 'failed') THEN CURRENT_TIMESTAMP END "
+                    "finished_at = CASE WHEN ? IN ('done', 'rolled_back', 'failed', 'attention') THEN CURRENT_TIMESTAMP END "
                     "WHERE id = ?", (status, "\n".join(_lines)[-20000:], to_version, from_version, status, update_id))
         con.commit()
         con.close()
@@ -233,14 +234,74 @@ def main() -> int:
 
     sysver_new = _system_version(root / "harbor")
     sysver_installed = _installed_system_version()
+    final = "done"
     if sysver_new > sysver_installed:
-        say(f"NOTE: this version also changes server components. Run once over SSH: "
-            f"sudo bash {APP}/source/install.sh")
+        if SKIP_INSTALLER or not (APP / "source" / "install.sh").exists():
+            say(f"NOTE: this version also changes server components. Run once over SSH: "
+                f"sudo bash {APP}/source/install.sh")
+        else:
+            say("This version also updates server components; running the installer (this takes a few minutes)…")
+            record(args.update_id, "running", to_version=new)
+            if run_installer(args.update_id):
+                say("Server components updated.")
+            else:
+                say(f"The new version is running, but updating server components didn't finish. "
+                    f"See the lines above, fix the cause, then run once over SSH: sudo bash {APP}/source/install.sh")
+                final = "attention"
     say(f"Done: Harbor {current} → {new}")
-    record(args.update_id, "done")
+    record(args.update_id, final)
     prune_releases()
     shutil.rmtree(work, ignore_errors=True)
     return 0
+
+
+def run_installer(update_id: int | None) -> bool:
+    """Re-run the installer from the new package (it keeps data and settings).
+    Only its step headings, warnings and errors go into the update log; the full
+    output is kept next to it. Output goes to a file rather than a pipe, because
+    services the installer (re)starts may hold on to a pipe and it would never close."""
+    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+    full = LOG.parent / f"install-{update_id or 'manual'}.log"
+    try:
+        full.parent.mkdir(parents=True, exist_ok=True)
+        out = open(full, "w")
+        proc = subprocess.Popen(["bash", str(APP / "source" / "install.sh")], cwd=str(APP / "source"),
+                                stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
+                                env=env, start_new_session=True)
+    except OSError as e:
+        say(f"Couldn't start the installer: {e}")
+        return False
+    out.close()
+    tail: list[str] = []
+    deadline = time.time() + 3600
+    with open(full, errors="replace") as f:
+        buf = ""
+        while True:
+            done = proc.poll() is not None
+            buf += f.read()
+            *lines, buf = buf.split("\n")
+            for line in lines:
+                clean = re.sub(r"\x1b\[[0-9;]*m", "", line).rstrip()
+                if not clean:
+                    continue
+                tail = (tail + [clean])[-15:]
+                if clean.startswith("==>") or clean.startswith(("Warning", "Error")):
+                    say("  " + clean.lstrip("=> ").strip())
+                    record(update_id, "running")
+            if done:
+                break
+            if time.time() > deadline:
+                proc.kill()
+                say(f"The installer took longer than an hour and was stopped. Full output: {full}")
+                return False
+            time.sleep(1)
+    if proc.returncode != 0:
+        say("Installer stopped with an error:")
+        for t in tail[-8:]:
+            say("    " + t)
+        say(f"Full installer output: {full}")
+        return False
+    return health_ok(120)
 
 
 def _system_version(pkg: Path) -> int:

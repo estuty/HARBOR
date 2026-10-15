@@ -234,7 +234,43 @@ async def check_now(request: Request, tasks: BackgroundTasks):
 async def updates_page(request: Request):
     rows = db.all("SELECT * FROM updates ORDER BY id DESC LIMIT 10")
     return render(request, "settings_updates.html", tab="updates", version=__version__, rows=rows,
-                  releases=updates.releases(), busy=updates.running())
+                  releases=updates.releases(), busy=updates.running(), up=updates.status())
+
+
+@router.post("/settings/updates/check")
+async def check_updates(request: Request):
+    import asyncio
+    async with guard(request):
+        await form_of(request)
+        found = await asyncio.to_thread(updates.check)
+        st = updates.status()
+        if st["error"]:
+            raise OpError(f"Couldn't check for updates. {st['error']}")
+        if found:
+            flash(request, f"Harbor {found['version']} is available.")
+        elif st["latest"]:
+            flash(request, f"You're running the latest version ({__version__}).")
+        else:
+            flash(request, f"No releases are published in {st['repo']} yet.")
+    return back("/settings/updates")
+
+
+@router.post("/settings/updates/latest")
+async def install_latest(request: Request):
+    import asyncio
+    async with guard(request):
+        await form_of(request)
+        await asyncio.to_thread(updates.install_latest, actor(request))
+        flash(request, "Update started. The panel restarts in a moment; this page follows along by itself.")
+    return back("/settings/updates")
+
+
+@router.post("/settings/updates/prefs")
+async def update_prefs(request: Request):
+    async with guard(request):
+        updates.save_prefs(await form_of(request), actor(request))
+        flash(request, "Update settings saved.")
+    return back("/settings/updates")
 
 
 @router.get("/settings/updates/status")

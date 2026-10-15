@@ -1,0 +1,48 @@
+# Publishes a GitHub release whenever the version in harbor/__init__.py changes on main.
+# Harbor servers check this repository's latest release and offer a one-click update.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [harbor/__init__.py]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Read the version
+        id: v
+        run: |
+          version=$(grep -oP '__version__ = "\K[^"]+' harbor/__init__.py)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "exists=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run the tests
+        if: steps.v.outputs.exists != 'yes'
+        run: |
+          python -m pip install -q -r requirements.txt pytest httpx moto
+          python -m pytest -q tests
+      - name: Build the package
+        if: steps.v.outputs.exists != 'yes'
+        run: |
+          mkdir -p dist/harbor
+          git archive HEAD | tar -x -C dist/harbor
+          rm -rf dist/harbor/.github
+          tar -czf "dist/harbor-${{ steps.v.outputs.version }}.tar.gz" -C dist harbor
+      - name: Publish the release
+        if: steps.v.outputs.exists != 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.v.outputs.version }}" "dist/harbor-${{ steps.v.outputs.version }}.tar.gz" \
+            --title "Harbor ${{ steps.v.outputs.version }}" --generate-notes --target "$GITHUB_SHA"
