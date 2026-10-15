@@ -115,14 +115,23 @@ p.post("/logout", page="/sites")
 r = p.c.get(f"/dbadmin/?username={user}&db={name}")
 check("signed out of the panel: editor not reachable", r.status_code == 302 and r.headers.get("location", "").endswith("/login"))
 
-# cleanup
+# cleanup (with one editor login still open, so deleting the site has to remove it)
 p = Panel()
 p.post("/login", {"username": "admin", "password": PW}, page="/login")
+p.post(f"/sites/{sid}/databases/{dbid}/open", page=f"/sites/{sid}/databases")
+con = sqlite3.connect("/var/lib/harbor/harbor.db")
+open_users = [u for (u,) in con.execute("SELECT mysql_user FROM db_editor_sessions WHERE db_name = ?", (name,))]
+con.close()
+check("a fresh editor login is open before deleting", len(open_users) == 1, open_users)
 for d in (SITE, OTHER):
     m = re.search(rf'href="/sites/(\d+)">{re.escape(d)}<', p.c.get("/sites").text)
     if m:
         p.post(f"/sites/{m.group(1)}/delete", {"confirm": d, "remove_files": "1", "drop_dbs": "1"}, page="/sites")
-check("no temporary users left behind", not sh("mysql -N -e \"SELECT User FROM mysql.user WHERE User LIKE 'hbr\\_ed\\_%'\""))
+con = sqlite3.connect("/var/lib/harbor/harbor.db")
+left = con.execute("SELECT mysql_user FROM db_editor_sessions WHERE db_name IN (?, ?)", (name, oname)).fetchall()
+con.close()
+check("deleting the sites removes their editor logins", not left and
+      not any(sh(f"mysql -N -e \"SELECT User FROM mysql.user WHERE User = '{u}'\"") for u in open_users), (left, open_users))
 
 failed = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} passed")
