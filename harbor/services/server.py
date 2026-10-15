@@ -56,6 +56,18 @@ def secure_hostname(actor: str) -> str:
     host = db.get_setting("hostname")
     if not host:
         raise OpError("Set the server host name first")
+    if not validators.is_full_hostname(host):
+        raise OpError(f"The host name '{host}' isn't a full domain name, so no certificate can be issued for it. "
+                      "Enter a name like server1.example.com under Server host name, save, add a DNS A record "
+                      "for it pointing to this server, then get the certificate.")
+    from . import health
+    from .dns import server_ip
+    ip = server_ip()
+    points_here, found = health._resolves_to_us(host, ip)
+    if points_here is False:
+        where = f"it points to {', '.join(found)}" if found else "it has no DNS A record yet"
+        raise OpError(f"{host} doesn't point to this server: {where}. Add an A record for {host} with the value "
+                      f"{ip} at your DNS provider, wait a few minutes, then try again.")
     try:
         # If the host name is also a hosted site, port 80 for it is served from that site's folder.
         site = db.one("SELECT domain FROM sites WHERE domain = ? OR 'www.' || domain = ?", host, host)

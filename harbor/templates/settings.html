@@ -10,6 +10,7 @@
     <h2>Identity</h2>
     <label>Server host name <span class="muted small">(e.g. server1.example.com: used as the mail server name)</span>
       <input name="hostname" value="{{ s.hostname }}" placeholder="server1.example.com" spellcheck="false"></label>
+    {% if s.hostname and not hostname_ok %}<p class="callout small">'{{ s.hostname }}' isn't a full domain name. Enter one like <code>server1.example.com</code> with a DNS A record pointing to this server, so mail and the certificate work.</p>{% endif %}
     <label>Public IPv4 address <span class="muted small">(detected: {{ detected_ip }})</span>
       <input name="server_ipv4" value="{{ s.server_ipv4 }}" placeholder="{{ detected_ip }}" spellcheck="false"></label>
     <label>Public IPv6 address <span class="muted small">(optional)</span>
@@ -35,7 +36,7 @@
   {% endif %}
   <form method="post" action="/settings/secure" data-busy="Requesting certificate…">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="btn {{ '' if s.hostname_ssl else 'primary' }}" {{ 'disabled' if not s.hostname }}>{{ 'Renew now' if s.hostname_ssl else 'Get certificate for ' ~ (s.hostname or 'host name') }}</button>
+    <button class="btn {{ '' if s.hostname_ssl else 'primary' }}" {{ 'disabled' if not hostname_ok }}>{{ 'Renew now' if s.hostname_ssl else 'Get certificate for ' ~ (s.hostname or 'host name') }}</button>
   </form>
 </section>
 
