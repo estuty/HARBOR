@@ -185,6 +185,11 @@ def _prune(site) -> None:
 
 
 def scheduler_tick() -> None:
+    try:
+        from . import dbeditor
+        dbeditor.cleanup_expired()  # temporary database-editor users
+    except Exception:
+        log.exception("database editor cleanup failed")
     for site in db.all("SELECT * FROM sites"):
         try:
             if _due(site):

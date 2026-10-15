@@ -15,6 +15,8 @@
       <td>{{ sizes.get(r.name, 0)|filesize }}</td>
       <td class="muted">{{ r.created_at[:10] }}</td>
       <td class="actions">
+        {% if editor %}<form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/open" target="_blank">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish strong" title="Browse and edit tables in a new tab">Open ↗</button></form>{% endif %}
         <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/reset" data-confirm="Generate a new password for {{ r.username }}? Apps using the old one will stop connecting.">
           <input type="hidden" name="csrf" value="{{ csrf }}"><button class="linkish">New password</button></form>
         <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/delete" data-confirm="Permanently delete {{ r.name }} and all its data?">
@@ -28,6 +30,10 @@
   <div class="empty">No databases for this site yet.</div>
   {% endif %}
 </section>
+{% if rows %}
+<p class="muted small">{% if editor %}<strong>Open</strong> starts the database editor (Adminer) in a new tab, signed in to that database only, for 2 hours. Back up first from the Backups tab before large changes.
+{% else %}The database editor isn't installed on this server yet. Run <code>sudo bash /opt/harbor/source/install.sh</code> to add it.{% endif %}</p>
+{% endif %}
 
 <section class="card narrow">
   <h2>New database</h2>

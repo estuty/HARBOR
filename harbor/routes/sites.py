@@ -121,7 +121,9 @@ async def databases_page(request: Request, site_id: int):
         sizes = mysql.sizes([r["name"] for r in rows])
     except Exception:
         sizes = {}
-    return render(request, "site_databases.html", site=site, tab="databases", rows=rows, sizes=sizes)
+    from ..services import dbeditor
+    return render(request, "site_databases.html", site=site, tab="databases", rows=rows, sizes=sizes,
+                  editor=dbeditor.available())
 
 
 @router.post("/sites/{site_id}/databases")
@@ -144,6 +146,10 @@ async def db_op(request: Request, site_id: int, db_id: int, op: str):
         elif op == "delete":
             svc.delete_database(site_id, db_id, actor(request))
             flash(request, "Database deleted.")
+        elif op == "open":
+            from ..services import dbeditor
+            token = dbeditor.open_editor(site_id, db_id, actor(request))
+            return back(f"/dbadmin/?harbor={token}")
     return back(f"/sites/{site_id}/databases")
 
 

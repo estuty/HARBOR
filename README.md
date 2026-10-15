@@ -22,6 +22,7 @@ Stack: **Nginx + PHP-FPM + MariaDB**, **Postfix + Dovecot + Rspamd** (mail), **B
 | Spam Filters | Rspamd; spam is filed into Junk |
 | Webmail | Roundcube on port 2096 |
 | MySQL Databases / Wizard | Database + user in one click; password shown once; sizes |
+| phpMyAdmin | **Databases tab → Open**: Adminer signed in to that one database (temporary MySQL user, 2 hours), browse, edit, import and export |
 | File Manager | Browse, drag-and-drop upload, edit, rename, delete, download; locked to the site |
 | FTP Accounts | **SFTP** per site, chrooted to the site folder |
 | Directory Privacy | Password-protected folders (including PHP inside them) |
@@ -191,6 +192,7 @@ The account page lists them all.
 | `/srv/harbor/backups/<domain>/` | Backups |
 | `/srv/harbor/imports/` | cPanel backups to import (delete them after moving) |
 | `/srv/harbor/sites/<domain>/git/` | Git deploy working copy and deploy key |
+| `/opt/harbor/adminer/`, `/var/lib/harbor-dbadmin/` | Database editor (Adminer) and its sessions; runs as the `harbor-dbadmin` user |
 | `/var/mail/vhosts/<domain>/<user>/` | Mailboxes (Maildir) |
 | `/etc/nginx/sites-available/harbor-*.conf` | Generated vhosts |
 | `/etc/php/<ver>/fpm/pool.d/harbor-*.conf` | Generated PHP pools |

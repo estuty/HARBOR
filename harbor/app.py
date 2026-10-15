@@ -23,7 +23,7 @@ _deploy.recover_interrupted()
 app = FastAPI(title="Harbor", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
-PUBLIC = ("/login", "/static/", "/ddns/", "/hooks/")
+PUBLIC = ("/login", "/static/", "/ddns/", "/hooks/", "/dbadmin-check")
 ADMIN_ONLY = ("/users", "/settings", "/activity", "/mail", "/api/stats", "/security", "/import", "/health")
 SITE_RE = re.compile(r"^/(?:api/v1/)?sites/(\d+)")
 ZONE_RE = re.compile(r"^/(?:api/v1/)?dns/(\d+)")
@@ -96,9 +96,9 @@ app.add_middleware(SessionMiddleware, secret_key=auth.secret_key(), session_cook
                    max_age=60 * 60 * 12, same_site="strict",
                    https_only=os.environ.get("HARBOR_COOKIE_SECURE", "0" if config.DRY_RUN else "1") == "1")
 
-from .routes import core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy  # noqa: E402
+from .routes import core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor  # noqa: E402
 
-for r in (core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy):
+for r in (core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor):
     app.include_router(r.router)
 
 

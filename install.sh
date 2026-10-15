@@ -529,6 +529,57 @@ else
   warn "fail2ban rejected its configuration:"; fail2ban-client -t || true
 fi
 
+# ---------------------------------------------------------------- Database editor
+say "Setting up the database editor (Adminer)"
+ADMINER_VERSION="5.4.1"
+ADMINER_SHA256="44f8f1fad049dca2245d0cc851f87139d73955d968f7ba825462fb9675470116"
+id harbor-dbadmin >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin harbor-dbadmin
+install -d -m 0750 -o root -g harbor-dbadmin /var/lib/harbor-dbadmin
+install -d -m 0770 -o root -g harbor-dbadmin /var/lib/harbor-dbadmin/tokens      # one-time logins from the panel
+install -d -m 0700 -o harbor-dbadmin -g harbor-dbadmin /var/lib/harbor-dbadmin/sessions /var/lib/harbor-dbadmin/tmp
+install -d -m 0755 "$APP/adminer"
+if ! echo "$ADMINER_SHA256  $APP/adminer/adminer.php" | sha256sum -c --status 2>/dev/null; then
+  tmp_adminer="$(mktemp)"
+  if curl -fsSL --retry 3 -o "$tmp_adminer" \
+       "https://github.com/vrana/adminer/releases/download/v${ADMINER_VERSION}/adminer-${ADMINER_VERSION}-mysql.php" \
+     && echo "$ADMINER_SHA256  $tmp_adminer" | sha256sum -c --status; then
+    install -m 0644 "$tmp_adminer" "$APP/adminer/adminer.php"
+  else
+    warn "Couldn't download the database editor (Adminer ${ADMINER_VERSION}); the Databases tab explains how to add it later"
+  fi
+  rm -f "$tmp_adminer"
+fi
+DBADMIN_PHP="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+cat > "/etc/php/${DBADMIN_PHP}/fpm/pool.d/harbor-dbadmin.conf" <<EOF
+; Managed by Harbor: the database editor runs as its own user, not as root or a site
+[harbor-dbadmin]
+user = harbor-dbadmin
+group = harbor-dbadmin
+listen = /run/php/harbor-dbadmin.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+pm = ondemand
+pm.max_children = 4
+pm.process_idle_timeout = 60s
+php_admin_value[open_basedir] = $APP/harbor/dbadmin/:$APP/adminer/:/var/lib/harbor-dbadmin/
+php_admin_value[session.save_path] = /var/lib/harbor-dbadmin/sessions
+php_admin_value[session.gc_maxlifetime] = 7200
+php_admin_value[upload_tmp_dir] = /var/lib/harbor-dbadmin/tmp
+php_admin_value[sys_temp_dir] = /var/lib/harbor-dbadmin/tmp
+php_admin_value[upload_max_filesize] = 256M
+php_admin_value[post_max_size] = 256M
+php_admin_value[memory_limit] = 512M
+php_admin_value[max_execution_time] = 300
+php_admin_flag[display_errors] = off
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,pcntl_exec
+EOF
+if "php-fpm${DBADMIN_PHP}" -t >/dev/null 2>&1; then
+  systemctl reload "php${DBADMIN_PHP}-fpm" || systemctl restart "php${DBADMIN_PHP}-fpm"
+else
+  warn "PHP-FPM rejected the database editor settings; see: php-fpm${DBADMIN_PHP} -t"
+fi
+
 # ---------------------------------------------------------------- Panel
 say "Serving the panel on port $PANEL_PORT"
 cat > /etc/nginx/conf.d/harbor-panel.conf <<EOF
@@ -557,6 +608,26 @@ server {
         client_max_body_size 6m;
         proxy_pass http://127.0.0.1:8090;
     }
+    location = /dbadmin { return 301 /dbadmin/; }
+    location = /dbadmin/ {                                # Databases tab -> Open (Adminer)
+        include /etc/nginx/harbor/panel-access.conf;
+        auth_request /internal/dbadmin-check;             # only people signed in to the panel
+        error_page 401 = @dbadmin_signin;
+        client_max_body_size 256m;
+        fastcgi_read_timeout 300;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $APP/harbor/dbadmin/index.php;
+        fastcgi_param SCRIPT_NAME /dbadmin/;
+        fastcgi_param HTTPS on;
+        fastcgi_pass unix:/run/php/harbor-dbadmin.sock;
+    }
+    location = /internal/dbadmin-check {
+        internal;
+        proxy_pass http://127.0.0.1:8090/dbadmin-check;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+    }
+    location @dbadmin_signin { return 302 /login; }
     location = /import/upload {                           # cPanel backups can be many GB
         include /etc/nginx/harbor/panel-access.conf;
         client_max_body_size 0;
