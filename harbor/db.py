@@ -180,6 +180,20 @@ def tx():
 
 
 def init() -> None:
+    """Bring the schema up to date. Several processes may start at once (the panel
+    service and the installer), so migrations run under an exclusive file lock and
+    the version is read only after the lock is held."""
+    import fcntl
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(f"{config.DB_PATH}.migrate.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            _migrate()
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _migrate() -> None:
     conn = connect()
     try:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
