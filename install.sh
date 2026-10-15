@@ -54,6 +54,11 @@ if [[ -f /var/lib/harbor/harbor.db ]] && command -v sqlite3 >/dev/null; then
   SAVED_HOST="$(sqlite3 /var/lib/harbor/harbor.db "SELECT value FROM server_settings WHERE key='hostname'" 2>/dev/null || true)"
 fi
 HOST="${HOSTNAME_ARG:-${SAVED_HOST:-$(hostname -f 2>/dev/null || hostname)}}"
+HOST="$(printf '%s' "$HOST" | tr '[:upper:]' '[:lower:]')"; HOST="${HOST%.}"
+if ! [[ "$HOST" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]]; then
+  die "The host name '$HOST' isn't a full domain name. Run again with --hostname server1.example.com
+       (a name you own, with a DNS A record pointing to this server). Mail and the panel certificate need it."
+fi
 HAS_V6=0; [[ -f /proc/net/if_inet6 ]] && HAS_V6=1
 v6() { [[ $HAS_V6 == 1 ]] && echo "$1" || true; }   # emit an IPv6 listen line only where IPv6 exists
 export DEBIAN_FRONTEND=noninteractive
@@ -628,11 +633,12 @@ fi
 
 # ---------------------------------------------------------------- admin
 cd "$APP"
-"$APP/venv/bin/python" - "$HOST" <<'PY'
+"$APP/venv/bin/python" - "$HOST" "${HOSTNAME_ARG:+given}" <<'PY'
 import sys
 from harbor import db
 db.init()
-if not db.get_setting("hostname"):
+# a --hostname on the command line replaces the saved one (e.g. to fix a short name like "harbor")
+if not db.get_setting("hostname") or sys.argv[2:] == ["given"]:
     db.set_setting("hostname", sys.argv[1])
 PY
 PW_NOTE="(unchanged)"

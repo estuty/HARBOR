@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 
-from .. import auth, config, db
+from .. import auth, config, db, validators
 from ..services import accounts, server
 from ..services import dns as dns_svc
 from ..system import phpfpm, stats
@@ -329,7 +329,8 @@ async def settings_page(request: Request):
     return render(request, "settings.html", s={k: db.get_setting(k) for k in keys},
                   limits={**phpfpm.DEFAULT_LIMITS, **default_limits()},
                   dns_auto=db.get_setting("dns_auto_zone", "1") == "1", detected_ip=dns_svc.server_ip(),
-                  php_versions=phpfpm.available_versions())
+                  php_versions=phpfpm.available_versions(),
+                  hostname_ok=validators.is_full_hostname(db.get_setting("hostname")))
 
 
 @router.post("/settings")

@@ -41,6 +41,11 @@ def hostname(value: str) -> str:
     return v
 
 
+def is_full_hostname(value: str) -> bool:
+    """True for a full domain name like server1.example.com (what Let's Encrypt and mail need)."""
+    return bool(DOMAIN_RE.match((value or "").strip().lower().rstrip(".")))
+
+
 def db_suffix(value: str) -> str:
     v = (value or "").strip().lower()
     if not DB_SUFFIX_RE.match(v):

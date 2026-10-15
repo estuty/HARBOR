@@ -277,7 +277,12 @@ def server_checks() -> list[dict]:
     host = db.get_setting("hostname")
     out = []
     # identity
-    if host:
+    from .. import validators
+    if host and not validators.is_full_hostname(host):
+        out.append(_r("Server", "bad", f"The server host name '{host}' isn't a full domain name",
+                      "Mail servers and Let's Encrypt need a name like server1.example.com.",
+                      f"Settings → General → Server host name: enter a full name, and add a DNS A record for it → {ip}."))
+    elif host:
         ok, found = _resolves_to_us(host, ip)
         if ok:
             out.append(_r("Server", "ok", f"{host} points to this server"))
