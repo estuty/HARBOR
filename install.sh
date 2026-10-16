@@ -591,8 +591,27 @@ say "Setting up malware scanning (ClamAV)"
 # Only the scanner and the signature updater: no clamav-daemon, so ClamAV uses memory only while a scan runs.
 install -d -m 0700 -o root -g root /var/lib/harbor/quarantine
 if apt_install clamav clamav-freshclam; then
+  # ClamAV's own database is aimed at email and Windows viruses and misses most website malware
+  # (PHP backdoors, injected WordPress code). These maintained community databases add that coverage;
+  # clamscan loads every database in /var/lib/clamav, so no scan-side change is needed. freshclam keeps
+  # them up to date. The InterServer whitelist loads first so its false-positive hashes win.
+  FRESHCLAM=/etc/clamav/freshclam.conf
+  if [[ -f "$FRESHCLAM" ]] && ! grep -q "Harbor web-malware signatures" "$FRESHCLAM"; then
+    cat >> "$FRESHCLAM" <<'EOF'
+
+# ---- Harbor web-malware signatures (edit the Malware settings in the panel, not here) ----
+DatabaseCustomURL https://sigs.interserver.net/whitelist.fp
+DatabaseCustomURL https://sigs.interserver.net/interserver256.hdb
+DatabaseCustomURL https://sigs.interserver.net/shell.ldb
+DatabaseCustomURL https://cdn.rfxn.com/downloads/rfxn.ndb
+DatabaseCustomURL https://cdn.rfxn.com/downloads/rfxn.hdb
+# ---- end Harbor web-malware signatures ----
+EOF
+  fi
   systemctl enable --now clamav-freshclam >/dev/null 2>&1 \
     || warn "The virus signature updater (clamav-freshclam) didn't start; see: journalctl -u clamav-freshclam -n 50"
+  # Fetch now (also pulls the custom databases); harmless if it's already running.
+  freshclam --quiet >/dev/null 2>&1 || true
   ls /var/lib/clamav/*.c[lv]d >/dev/null 2>&1 \
     || echo "    Virus signatures are downloading in the background; the first scan can run once they're in."
 else
