@@ -21,6 +21,8 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
 - Copy is plain, sentence case, and errors say how to fix the problem.
 - Anything the panel (root) does inside a site folder must not follow links the site could plant: see
   `system/malware.py` (`O_NOFOLLOW` walk from the site folder) for quarantine/restore.
+- Malware scanning (`system/malware.py`) runs `clamscan` on demand; ClamAV's own DB misses website malware, so
+  the installer adds the Linux Malware Detect and InterServer signature sets via `freshclam` `DatabaseCustomURL`.
 - Generated configs are tested (`nginx -t`, `php-fpm -t`, `named-checkzone`, `postmap`) and rolled back on failure.
 
 ## Tests

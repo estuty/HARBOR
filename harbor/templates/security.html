@@ -80,12 +80,15 @@
   {% if not mw_installed %}
     <p class="muted">ClamAV isn't installed. Re-run the installer to add it: <code>sudo bash /opt/harbor/source/install.sh</code></p>
   {% else %}
-  <p class="muted">Each site's files are checked with ClamAV. Infected files are moved to quarantine right away and admins are told by
-    email or webhook (<a href="/settings/alerts">Alerts</a>). Review them on the site's Malware tab.</p>
+  <p class="muted">Each site's files are checked with ClamAV, using its own signatures plus maintained sets for website malware
+    (PHP backdoors and injected WordPress code), which ClamAV alone misses. Infected files are moved to quarantine right away
+    and admins are told by email or webhook (<a href="/settings/alerts">Alerts</a>). Review them on the site's Malware tab.</p>
   <p class="small">
     {% if not mw_sigs.present %}<span class="pill warn">No virus signatures yet</span> They download by themselves shortly after installing. To fetch them now: <code>sudo systemctl restart clamav-freshclam</code>
     {% elif mw_sigs.date %}Virus signatures from <strong>{{ mw_sigs.date.strftime('%Y-%m-%d') }}</strong>{% if mw_sigs.age_days > 3 %} <span class="pill warn">{{ mw_sigs.age_days }} days old</span> check <code>sudo systemctl status clamav-freshclam</code>{% else %}, updated daily{% endif %}.
     {% else %}Virus signatures installed, updated daily.{% endif %}
+    {% if mw_sigs.web %}Website-malware sets: <strong>{{ mw_sigs.web|join(', ') }}</strong>.
+    {% elif mw_sigs.web_missing %}<span class="pill warn">Website-malware signatures not loaded yet</span> They download with the next signature update; to fetch now: <code>sudo freshclam</code>.{% endif %}
   </p>
   <form method="post" action="/security/malware" class="row narrow malware-prefs">
     <input type="hidden" name="csrf" value="{{ csrf }}">

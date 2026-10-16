@@ -121,6 +121,11 @@ key; the live files stay.
 Harbor checks each site's files with **ClamAV** every night (03:00 UTC by default; change it or turn it
 off under **Security → Malware scanning**) and whenever you click **Scan now** on a site's **Malware** tab.
 
+- ClamAV's own signatures are aimed at email and Windows viruses and miss most website malware, so Harbor also
+  installs maintained web-malware signature sets ([Linux Malware Detect](https://www.rfxn.com/projects/linux-malware-detect/)
+  and [InterServer](https://sigs.interserver.net/)) that catch PHP backdoors and injected WordPress code. They're
+  fetched and kept current by `clamav-freshclam` alongside ClamAV's own database. The site's Malware tab shows which
+  sets are loaded.
 - Every file in the site folder is checked except the web server logs in `logs/`. Files over 100 MB can't be
   checked and are listed in the scan log. Links are never followed. Files with line breaks or control characters
   in their names are quarantined as suspicious (normal sites don't have them).
