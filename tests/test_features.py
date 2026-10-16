@@ -91,6 +91,9 @@ def test_web_rules_and_security():
 def test_php_ini():
     c = login()
     sid, page = make_site(c, "php.test")
+    pool = (config.ETC / "php" / f"site{sid}.conf").read_text()
+    assert "php_value[upload_max_filesize] = 256M" in pool and "php_value[post_max_size] = 256M" in pool
+    assert "client_max_body_size 257M;" in vhost("php.test")
     form = {"memory_limit": "512M", "upload_max_filesize": "200M", "post_max_size": "200M", "max_execution_time": "120",
             "max_input_time": "60", "max_input_vars": "5000", "session.gc_maxlifetime": "1440",
             "date.timezone": "Europe/London", "display_errors": "Off", "short_open_tag": "Off", "allow_url_fopen": "On"}

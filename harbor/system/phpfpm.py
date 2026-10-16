@@ -71,8 +71,8 @@ DEFAULT_LIMITS = {"cpu_pct": 100, "memory_mb": 1024, "processes": 10, "disk_mb":
 # key -> (default, kind). kind "flag" values are On/Off.
 INI_KEYS = {
     "memory_limit": ("256M", "size"),
-    "upload_max_filesize": ("64M", "size"),
-    "post_max_size": ("64M", "size"),
+    "upload_max_filesize": ("256M", "size"),
+    "post_max_size": ("256M", "size"),
     "max_execution_time": ("60", "int"),
     "max_input_time": ("60", "int"),
     "max_input_vars": ("3000", "int"),
