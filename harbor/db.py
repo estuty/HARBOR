@@ -173,6 +173,15 @@ MIGRATIONS = [
         found_at TEXT DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT, resolved_by TEXT);
     CREATE INDEX malware_files_site ON malware_files(site_id, status);
     """,
+    # 11: WordPress-aware security findings (not files to quarantine; reported for review)
+    """
+    CREATE TABLE malware_findings (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        scan_id INTEGER, install TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'review',
+        title TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open',
+        found_at TEXT DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT, resolved_by TEXT);
+    CREATE INDEX malware_findings_site ON malware_findings(site_id, status);
+    """,
 ]
 
 

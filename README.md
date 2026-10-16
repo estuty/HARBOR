@@ -138,6 +138,20 @@ off under **Security → Malware scanning**) and whenever you click **Scan now**
 - ClamAV runs only while a scan runs (no background daemon) and needs about **1.5 GB of free memory** during a
   scan. Sites are scanned one at a time, at low CPU and disk priority.
 
+**WordPress-aware checks.** When a scanned site is WordPress, Harbor also runs checks a file scanner can't do:
+- **Integrity** — core and plugin files are verified against the official wordpress.org checksums, which catches code
+  injected into otherwise-legitimate files.
+- **Drop-ins** — `db.php`, `object-cache.php`, `advanced-cache.php` and `.user.ini auto_prepend` that no installed
+  caching plugin created (a common persistence trick).
+- **Fake plugins** — a plugin that is one huge PHP file, or whose folder name doesn't match its declared name.
+- **PHP in uploads**, and **admin accounts created in the last 30 days**.
+
+These appear as "WordPress checks" on the Malware tab with **Mark fixed** / **Ignore** per item, and feed the dashboard
+alert. They're reported for review (not auto-quarantined), since each needs a judgement call.
+
+**Imported sites are scanned automatically.** A cPanel backup is a common way an already-infected site arrives, so
+after a cPanel import Harbor scans each imported site's files straight away.
+
 ## Moving from cPanel
 
 1. On the old host: cPanel → **Backup → Download a Full Account Backup** (destination: Home Directory).

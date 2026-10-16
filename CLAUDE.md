@@ -23,6 +23,8 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
   `system/malware.py` (`O_NOFOLLOW` walk from the site folder) for quarantine/restore.
 - Malware scanning (`system/malware.py`) runs `clamscan` on demand; ClamAV's own DB misses website malware, so
   the installer adds the Linux Malware Detect and InterServer signature sets via `freshclam` `DatabaseCustomURL`.
+- `system/wpcheck.py` adds WordPress-aware checks (official-checksum verification via wp-cli, drop-ins, fake plugins,
+  uploads PHP, recent admins). Findings go to `malware_findings` and show on the Malware tab; cPanel imports auto-scan.
 - Generated configs are tested (`nginx -t`, `php-fpm -t`, `named-checkzone`, `postmap`) and rolled back on failure.
 
 ## Tests
