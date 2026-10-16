@@ -411,3 +411,14 @@ details.resolved ul { list-style: none; margin: 8px 0 0; padding: 0; display: gr
 #malware > .row.between { gap: 10px; margin-bottom: 4px; }
 .malware-sites .pill { white-space: nowrap; }
 @media (max-width: 560px) { .malware-sites .mw-last { display: none; } }
+.pad-side { padding: 0 16px; }
+.malware-findings td:first-child { max-width: 560px; }
+.malware-findings .muted.small { margin-top: 2px; }
+@media (max-width: 700px) {
+  .malware-findings thead { display: none; }
+  .malware-findings, .malware-findings tbody, .malware-findings tr, .malware-findings td { display: block; }
+  .malware-findings tr { padding: 12px 16px; border-top: 1px solid var(--line); }
+  .malware-findings td { border: 0 !important; padding: 2px 0 !important; max-width: none; text-align: left !important; }
+  .malware-findings td.actions { padding-top: 8px !important; }
+  .malware-findings td.actions form:first-child { margin-left: 0; }
+}

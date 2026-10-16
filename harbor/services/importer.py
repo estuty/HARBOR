@@ -189,6 +189,29 @@ def start_run(import_id: int, choices: dict, actor: str):
     return lambda: _run(import_id, choices, actor)
 
 
+def _scan_imported_sites(result: dict, p) -> None:
+    """A cPanel backup can carry an infection (it's how most imported sites arrive hacked), so scan
+    every imported site's files for malware right after copying them in. The scan runs in the
+    background; anything infected is quarantined and admins are alerted, same as a normal scan."""
+    from . import malware
+    if not malware.available():
+        result["notes"].append("Install the malware scanner (ClamAV) to have imported sites checked automatically.")
+        return
+    sites = [s for s in result.get("sites", []) if s.get("kind") != "parked"]
+    if not sites:
+        return
+    try:
+        for s in sites:
+            malware.queue(s["id"], "import", "importer")
+        p(f"Queued a malware scan of {len(sites)} imported site(s).", force=True)
+        result["notes"].append("Harbor is scanning the imported files for malware — check each site's Malware tab. "
+                               "Imported sites are a common source of infections.")
+    except Exception as e:
+        log.exception("could not queue import malware scan")
+        result["warnings"].append(f"Couldn't start the malware scan of the imported sites: {e}. "
+                                  "Run it by hand from each site's Malware tab.")
+
+
 def _run(import_id: int, choices: dict, actor: str) -> None:
     row = get(import_id)
     plan = plan_of(row)
@@ -200,6 +223,7 @@ def _run(import_id: int, choices: dict, actor: str) -> None:
     try:
         _do_import(Path(row["source"]), plan, choices, work, p, result, actor)
         status = "done"
+        _scan_imported_sites(result, p)
         p("Import finished.", force=True)
         db.log(f"cPanel import of {plan['main_domain']} finished", actor)
     except Exception as e:

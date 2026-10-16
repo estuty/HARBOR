@@ -12,6 +12,22 @@ def as_site(sysuser: str, root: Path, php: str, args: list[str], stdin: str | No
     return run(cmd, input=stdin, timeout=900)
 
 
+def as_site_output(sysuser: str, root: Path, php: str, args: list[str], timeout: int = 900) -> tuple[str, int]:
+    """Run wp-cli as the site user for a read-only check: return (stdout+stderr, exit code) and
+    never raise. wp-cli reports findings (e.g. checksum mismatches) on stderr and exits non-zero,
+    so both streams are captured."""
+    import subprocess
+    if config.DRY_RUN:
+        return "", 0
+    cmd = ["runuser", "-u", sysuser, "--", "env", f"HOME={root}/tmp", f"WP_CLI_CACHE_DIR={root}/tmp/.wp-cli",
+           php, str(config.WP_CLI)] + args
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return str(e), 1
+    return (r.stdout + r.stderr), r.returncode
+
+
 def install_wordpress(sysuser: str, root: Path, path: Path, php: str, url: str, title: str,
                       admin_user: str, admin_pass: str, admin_email: str,
                       db_name: str, db_user: str, db_pass: str, locale: str = "en_US") -> str:
