@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .. import __version__, config, db, validators
-from ..services import OpError, alerts, protection, updates
+from ..services import OpError, alerts, malware, protection, updates
 from ..services import backups as bk
 from ..system import firewall, notify, offsite, phpfpm
 from ..web import actor, back, flash, form_of, guard, principal, render
@@ -28,7 +28,9 @@ async def security_page(request: Request):
                   jails=firewall.jail_status() if config.features()["fail2ban"] else [],
                   f2b=config.features()["fail2ban"] and firewall.fail2ban_running(),
                   failures=firewall.recent_failures(15),
-                  no2fa=db.all("SELECT username FROM users WHERE role = 'admin' AND totp_enabled = 0"))
+                  no2fa=db.all("SELECT username FROM users WHERE role = 'admin' AND totp_enabled = 0"),
+                  mw_installed=malware.available(), mw_prefs=malware.prefs(), mw_sites=malware.overview(),
+                  mw_sigs=malware.signatures() if malware.available() else {})
 
 
 @router.post("/security/access")
