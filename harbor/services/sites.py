@@ -137,6 +137,8 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
         for d in db.all("SELECT * FROM databases WHERE site_id = ?", site_id):
             attempt(lambda d=d: dbeditor.close_for_database(d["name"]))
             attempt(lambda d=d: mysql.drop(d["name"], _user_if_unshared(d)))
+    from . import malware
+    attempt(lambda: malware.forget_site(site_id))
     users.delete(site["sysuser"], site["domain"], remove_files)
     zone = db.one("SELECT id FROM dns_zones WHERE site_id = ?", site_id)
     db.execute("DELETE FROM sites WHERE id = ?", site_id)

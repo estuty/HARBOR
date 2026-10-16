@@ -4,7 +4,7 @@ A self-hosted alternative to cPanel for one Linux server: websites, email, DNS,
 databases, security and backups in one panel. One install script, no licence fees.
 
 Stack: **Nginx + PHP-FPM + MariaDB**, **Postfix + Dovecot + Rspamd** (mail), **BIND 9** (DNS),
-**ModSecurity + OWASP CRS** (firewall), **Roundcube** (webmail), **WP-CLI** (WordPress).
+**ModSecurity + OWASP CRS** (firewall), **ClamAV** (malware scanning), **Roundcube** (webmail), **WP-CLI** (WordPress).
 
 ## Features, mapped to cPanel
 
@@ -39,6 +39,7 @@ Stack: **Nginx + PHP-FPM + MariaDB**, **Postfix + Dovecot + Rspamd** (mail), **B
 | Site Publisher | Three templates (Business, Personal, Coming soon) filled from a form |
 | Team users / Manage API Tokens | Admins and team users with per-site access; API tokens with the owner's permissions; JSON API |
 | Two-factor authentication | Authenticator-app codes + one-time recovery codes; can be required for all admins |
+| ImunifyAV / Virus Scanner | **ClamAV** scans every site nightly and on demand; infected files quarantined automatically, admins notified; restore or delete on the site's Malware tab |
 | cPHulk brute-force protection | **fail2ban** for SSH, panel, SMTP/IMAP, webmail and protected folders; ban/unban in Security |
 | Host access control | Panel (and optionally webmail) limited to your IP addresses |
 | Backup to remote destinations | Offsite copies to any S3-compatible storage (Spaces, B2, S3, Wasabi, R2), retention, restore from offsite |
@@ -114,6 +115,23 @@ Each site has a **Deploy** tab.
 
 The working copy lives in `/srv/harbor/sites/<domain>/git/` (outside the web root). Disconnecting deletes it and the
 key; the live files stay.
+
+## Malware scanning
+
+Harbor checks each site's files with **ClamAV** every night (03:00 UTC by default; change it or turn it
+off under **Security → Malware scanning**) and whenever you click **Scan now** on a site's **Malware** tab.
+
+- Every file in the site folder is checked except the web server logs in `logs/`. Files over 100 MB can't be
+  checked and are listed in the scan log. Links are never followed. Files with line breaks or control characters
+  in their names are quarantined as suspicious (normal sites don't have them).
+- An infected file is moved straight away to `/var/lib/harbor/quarantine/` (root only), the dashboard shows it
+  under "Needs attention", and admins get an email or webhook message (Settings → Alerts).
+- On the Malware tab: **Delete** removes a quarantined file for good; **Restore** puts it back, owned by the site's
+  user with its permissions (for a false alarm), and later scans leave it alone unless the file changes.
+- Signatures are downloaded by `clamav-freshclam` (a few times a day; the first download takes a few minutes after
+  installing). Harbor warns you if they get more than 3 days old.
+- ClamAV runs only while a scan runs (no background daemon) and needs about **1.5 GB of free memory** during a
+  scan. Sites are scanned one at a time, at low CPU and disk priority.
 
 ## Moving from cPanel
 
@@ -200,6 +218,7 @@ The account page lists them all.
 | `/srv/harbor/backups/<domain>/` | Backups |
 | `/srv/harbor/imports/` | cPanel backups to import (delete them after moving) |
 | `/srv/harbor/sites/<domain>/git/` | Git deploy working copy and deploy key |
+| `/var/lib/harbor/quarantine/<site id>/` | Quarantined files (malware scanning), root only |
 | `/opt/harbor/adminer/`, `/var/lib/harbor-dbadmin/` | Database editor (Adminer) and its sessions; runs as the `harbor-dbadmin` user |
 | `/var/mail/vhosts/<domain>/<user>/` | Mailboxes (Maildir) |
 | `/etc/nginx/sites-available/harbor-*.conf` | Generated vhosts |

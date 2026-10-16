@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Security{% endblock %}
 {% block content %}
-<header class="page-head"><div><h1>Server security</h1><p class="muted">Who can reach the panel, and automatic blocking of password-guessing attacks.</p></div></header>
+<header class="page-head"><div><h1>Server security</h1><p class="muted">Who can reach the panel, automatic blocking of password-guessing attacks, and malware scanning.</p></div></header>
 
 <section class="grid-2">
   <div class="card">
@@ -65,6 +65,54 @@
     <input name="ip" placeholder="IP address to block everywhere" required spellcheck="false" aria-label="IP address">
     <button class="btn danger">Block</button>
   </form>
+  {% endif %}
+</section>
+
+<section class="card" id="malware">
+  <div class="row between">
+    <h2>Malware scanning <span class="muted small">ClamAV</span></h2>
+    {% if mw_installed %}
+    <form method="post" action="/security/malware/scan-all" data-busy="Starting…" data-confirm="Scan every site now? Sites are scanned one after another; each scan uses about 1.5 GB of memory while it runs.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Scan all sites now</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if not mw_installed %}
+    <p class="muted">ClamAV isn't installed. Re-run the installer to add it: <code>sudo bash /opt/harbor/source/install.sh</code></p>
+  {% else %}
+  <p class="muted">Each site's files are checked with ClamAV. Infected files are moved to quarantine right away and admins are told by
+    email or webhook (<a href="/settings/alerts">Alerts</a>). Review them on the site's Malware tab.</p>
+  <p class="small">
+    {% if not mw_sigs.present %}<span class="pill warn">No virus signatures yet</span> They download by themselves shortly after installing. To fetch them now: <code>sudo systemctl restart clamav-freshclam</code>
+    {% elif mw_sigs.date %}Virus signatures from <strong>{{ mw_sigs.date.strftime('%Y-%m-%d') }}</strong>{% if mw_sigs.age_days > 3 %} <span class="pill warn">{{ mw_sigs.age_days }} days old</span> check <code>sudo systemctl status clamav-freshclam</code>{% else %}, updated daily{% endif %}.
+    {% else %}Virus signatures installed, updated daily.{% endif %}
+  </p>
+  <form method="post" action="/security/malware" class="row narrow malware-prefs">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="check"><input type="checkbox" name="nightly" value="1" {{ 'checked' if mw_prefs.nightly }}> Scan every site every night at</label>
+    <select name="hour" aria-label="Hour (UTC)">{% for h in range(24) %}<option value="{{ h }}" {{ 'selected' if h == mw_prefs.hour }}>{{ '%02d' % h }}:00</option>{% endfor %}</select>
+    <span class="muted small">UTC</span>
+    <button class="btn">Save</button>
+  </form>
+  {% if mw_sites %}
+  <div class="table-wrap">
+  <table class="table compact malware-sites">
+    <thead><tr><th>Site</th><th class="mw-last">Last scan</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for s in mw_sites %}
+    <tr>
+      <td><a href="/sites/{{ s.id }}/malware">{{ s.domain }}</a></td>
+      <td class="nowrap mw-last">{% if s.active %}<span class="pill warn">{{ 'Scanning' if s.active.status == 'running' else 'Waiting' }}</span>
+          {% elif s.last %}{{ s.last.finished_at or s.last.created_at }}{% else %}<span class="muted">Not yet</span>{% endif %}</td>
+      <td>{% if s.quarantined %}<a class="pill bad" href="/sites/{{ s.id }}/malware">{{ s.quarantined }} in quarantine</a>
+          {% elif s.last and s.last.status == 'failed' %}<span class="pill warn">Failed</span>
+          {% elif s.last %}<span class="pill ok">Clean</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
   {% endif %}
 </section>
 

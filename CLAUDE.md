@@ -19,6 +19,8 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
 
 - New site feature: route in `harbor/routes/`, service in `harbor/services/`, template extending `base.html` and including `_site_head.html`, add the tab in `_site_head.html`, register the router in `app.py`.
 - Copy is plain, sentence case, and errors say how to fix the problem.
+- Anything the panel (root) does inside a site folder must not follow links the site could plant: see
+  `system/malware.py` (`O_NOFOLLOW` walk from the site folder) for quarantine/restore.
 - Generated configs are tested (`nginx -t`, `php-fpm -t`, `named-checkzone`, `postmap`) and rolled back on failure.
 
 ## Tests
@@ -30,7 +32,7 @@ python -m pytest -q tests          # dry-run: HARBOR_DRY_RUN=1 sandboxes every p
 
 `tests/integration/run_*.py` exercise a real server end to end (run as root on a test VPS after `./install.sh`):
 `run_live.py PASSWORD`, `run_stage1.py PASSWORD harbor.tar.gz`, `run_stage2.py PASSWORD [flat|nested]`,
-`run_deploy.py PASSWORD`, `run_dbeditor.py PASSWORD`, `run_updates.py PASSWORD`.
+`run_deploy.py PASSWORD`, `run_dbeditor.py PASSWORD`, `run_updates.py PASSWORD`, `run_malware.py PASSWORD`.
 
 Run a dev panel without touching the system:
 

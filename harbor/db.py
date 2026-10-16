@@ -157,6 +157,22 @@ MIGRATIONS = [
         site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL, actor TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, expires_at TEXT NOT NULL);
     """,
+    # 10: malware scanning (ClamAV) and quarantine
+    """
+    CREATE TABLE malware_scans (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'queued', trigger TEXT NOT NULL DEFAULT 'manual', actor TEXT,
+        files INTEGER NOT NULL DEFAULT 0, found INTEGER NOT NULL DEFAULT 0, log TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, started_at TEXT, finished_at TEXT);
+    CREATE INDEX malware_scans_site ON malware_scans(site_id, id);
+    CREATE TABLE malware_files (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        scan_id INTEGER, path TEXT NOT NULL, raw_path TEXT NOT NULL DEFAULT '', signature TEXT NOT NULL, size INTEGER NOT NULL DEFAULT 0,
+        sha256 TEXT NOT NULL DEFAULT '', mode INTEGER NOT NULL DEFAULT 420, uid INTEGER NOT NULL DEFAULT 0,
+        gid INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'quarantined',
+        found_at TEXT DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT, resolved_by TEXT);
+    CREATE INDEX malware_files_site ON malware_files(site_id, status);
+    """,
 ]
 
 

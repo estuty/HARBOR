@@ -8,7 +8,7 @@
 <nav class="tabs">
   {% set tabs = [('overview','Overview'),('files','Files'),('deploy','Deploy'),('databases','Databases')] %}
   {% if features.mail %}{% set tabs = tabs + [('mail','Email')] %}{% endif %}
-  {% set tabs = tabs + [('health','Health'),('apps','Apps'),('redirects','Redirects'),('security','Security'),('php','PHP'),('cron','Cron'),('backups','Backups'),('stats','Stats'),('logs','Logs'),('advanced','Advanced')] %}
+  {% set tabs = tabs + [('health','Health'),('apps','Apps'),('redirects','Redirects'),('security','Security'),('malware','Malware'),('php','PHP'),('cron','Cron'),('backups','Backups'),('stats','Stats'),('logs','Logs'),('advanced','Advanced')] %}
   {% for key, label in tabs %}
   <a href="/sites/{{ site.id }}{{ '' if key == 'overview' else '/' ~ key }}" class="{{ 'on' if tab == key }}">{{ label }}</a>
   {% endfor %}

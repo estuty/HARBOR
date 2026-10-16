@@ -30,14 +30,15 @@ def _subject(title: str, resolved: bool = False) -> str:
     return f"[{host}] {'Resolved: ' if resolved else ''}{title}"
 
 
-def fire(key: str, title: str, detail: str = "", severity: str = "warning") -> None:
+def fire(key: str, title: str, detail: str = "", severity: str = "warning", quiet: bool = False) -> None:
+    """quiet: record the problem (dashboard, Health) without sending a message; for callers that send their own."""
     row = db.one("SELECT * FROM alerts WHERE key = ?", key)
     if row and row["resolved_at"] is None:
         db.execute("UPDATE alerts SET title = ?, detail = ?, severity = ? WHERE key = ?", title, detail, severity, key)
         last = row["last_notified"]
         due = not last or (datetime.now(timezone.utc).replace(tzinfo=None) -
                            datetime.fromisoformat(last)).total_seconds() > REMIND_SECONDS
-        if not due:
+        if not due or quiet:
             return
         prefix = "Still happening: "
     else:
@@ -47,6 +48,9 @@ def fire(key: str, title: str, detail: str = "", severity: str = "warning") -> N
                    key, title, detail, severity, _now())
         db.log(f"Alert: {title}", "monitor", "error" if severity == "critical" else "warn")
         prefix = ""
+    if quiet:
+        db.execute("UPDATE alerts SET last_notified = ? WHERE key = ?", _now(), key)
+        return
     errors = notify.send(_subject(prefix + title), f"{detail}\n\nFirst seen: {(row and row['first_seen']) or _now()} UTC")
     if errors:
         log.warning("alert delivery failed: %s", errors)

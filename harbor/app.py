@@ -96,9 +96,9 @@ app.add_middleware(SessionMiddleware, secret_key=auth.secret_key(), session_cook
                    max_age=60 * 60 * 12, same_site="strict",
                    https_only=os.environ.get("HARBOR_COOKIE_SECURE", "0" if config.DRY_RUN else "1") == "1")
 
-from .routes import core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor  # noqa: E402
+from .routes import core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor, malware  # noqa: E402
 
-for r in (core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor):
+for r in (core, sites, webrules, mail, dns, apps, api, admin, imports, health, deploy, dbeditor, malware):
     app.include_router(r.router)
 
 
@@ -109,3 +109,5 @@ async def _start_scheduler():
         from .services import alerts, updates
         alerts.start_monitor()
         updates.start_checker()
+        from .services import malware as malware_svc
+        malware_svc.start_worker()

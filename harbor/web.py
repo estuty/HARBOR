@@ -66,6 +66,8 @@ def release_notes(text) -> Markup:
 
 
 templates.env.filters["release_notes"] = release_notes
+# Long paths and signature names: allow line breaks after / . - _ instead of mid-word.
+templates.env.filters["breakable"] = lambda t: Markup(re.sub(r"([/._-])", r"\1<wbr>", str(escape(t or ""))))
 templates.env.filters["day"] = lambda s: str(s or "")[:10]
 templates.env.filters["filesize"] = filesize
 templates.env.filters["duration"] = duration

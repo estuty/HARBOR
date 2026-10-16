@@ -586,6 +586,19 @@ else
 fi
 
 # ---------------------------------------------------------------- Panel
+# ---------------------------------------------------------------- Malware scanning
+say "Setting up malware scanning (ClamAV)"
+# Only the scanner and the signature updater: no clamav-daemon, so ClamAV uses memory only while a scan runs.
+install -d -m 0700 -o root -g root /var/lib/harbor/quarantine
+if apt_install clamav clamav-freshclam; then
+  systemctl enable --now clamav-freshclam >/dev/null 2>&1 \
+    || warn "The virus signature updater (clamav-freshclam) didn't start; see: journalctl -u clamav-freshclam -n 50"
+  ls /var/lib/clamav/*.c[lv]d >/dev/null 2>&1 \
+    || echo "    Virus signatures are downloading in the background; the first scan can run once they're in."
+else
+  warn "Couldn't install ClamAV; the Malware tab explains how to add it later"
+fi
+
 say "Serving the panel on port $PANEL_PORT"
 cat > /etc/nginx/conf.d/harbor-panel.conf <<EOF
 # Harbor control panel. The certificate in $TLS is replaced with a trusted one from Settings.

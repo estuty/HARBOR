@@ -383,3 +383,31 @@ details.card[open] > summary { margin-bottom: 14px; }
 details.update-prefs { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
 details.update-prefs summary { cursor: pointer; color: var(--muted); font-weight: 550; }
 details.update-prefs form { margin-top: 12px; max-width: 560px; }
+
+/* Malware tab */
+.malware-status .live-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.malware-files .threat { font-family: var(--mono); font-size: 0.85rem; color: var(--bad); }
+.mw-path { overflow-wrap: break-word; }
+.malware-files td:first-child { max-width: 420px; }
+.malware-scans .pill + .small { margin-left: 6px; }
+@media (max-width: 700px) {
+  .malware-files thead { display: none; }
+  .malware-files, .malware-files tbody, .malware-files tr, .malware-files td { display: block; }
+  .malware-files tr { padding: 12px 16px; border-top: 1px solid var(--line); }
+  .malware-files td { border: 0 !important; padding: 2px 0 !important; max-width: none; text-align: left !important; }
+  .malware-files td[data-label="Found"]::before, .malware-files td[data-label="Size"]::before { content: attr(data-label) ": "; color: var(--muted); }
+  .malware-files td.actions { padding-top: 8px !important; }
+  .malware-files td.actions form:first-child { margin-left: 0; }
+}
+.malware-lower { align-items: start; }
+.sig-line { margin-top: 14px; }
+details.resolved { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+details.resolved ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.malware-sites td:first-child a { font-weight: 600; }
+.malware-prefs { align-items: center; flex-wrap: wrap; max-width: none; margin: 14px 0 6px; }
+.malware-prefs select { flex: none; width: 7.5em; }
+.malware-sites { margin-top: 12px; }
+.malware-scans .pill { white-space: nowrap; }
+#malware > .row.between { gap: 10px; margin-bottom: 4px; }
+.malware-sites .pill { white-space: nowrap; }
+@media (max-width: 560px) { .malware-sites .mw-last { display: none; } }
