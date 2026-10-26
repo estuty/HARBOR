@@ -298,3 +298,35 @@ def test_new_pages_render():
     for u in ("/security", "/settings", "/settings/backups", "/settings/alerts", "/settings/updates", "/account"):
         r = c.get(u)
         assert r.status_code == 200 and "Traceback" not in r.text, u
+
+
+def test_alert_dismiss_and_action_link(monkeypatch):
+    from harbor.services import alerts
+    c = login()
+    # an action link is derived from the key, and the item shows on the dashboard with Dismiss
+    alerts.fire("malware:5", "cookdiaries.com: 1 thing to review", "details", "warning", quiet=True)
+    a = next(x for x in alerts.active() if x["key"] == "malware:5")
+    assert a["action_url"] == "/sites/5/malware" and a["action_label"] == "Review"
+    home = c.get("/").text
+    assert "/sites/5/malware" in home and "/alerts/dismiss" in home and "Dismiss" in home
+
+    # dismiss it -> leaves the "Needs attention" list (it may still appear in the activity log)
+    def needs_attention(html):
+        import re
+        m = re.search(r'alert-list.*?</section>', html, re.S)
+        return m.group(0) if m else ""
+    post(c, "/alerts/dismiss", {"key": "malware:5"}, page="/")
+    assert not any(x["key"] == "malware:5" for x in alerts.active())
+    assert "1 thing to review" not in needs_attention(c.get("/").text)
+
+    # a repeat at the same severity stays dismissed; an escalation brings it back
+    alerts.fire("malware:5", "cookdiaries.com: 1 thing to review", "details", "warning", quiet=True)
+    assert not any(x["key"] == "malware:5" for x in alerts.active())
+    alerts.fire("malware:5", "Malware found on cookdiaries.com", "a quarantined file", "critical", quiet=True)
+    assert any(x["key"] == "malware:5" for x in alerts.active())
+    assert "Malware found" in needs_attention(c.get("/").text)
+    alerts.resolve("malware:5")
+
+    # non-site alerts get the Health link
+    url, label = alerts._action_for("svc:nginx")
+    assert url == "/health"

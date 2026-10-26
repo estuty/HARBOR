@@ -422,3 +422,10 @@ details.resolved ul { list-style: none; margin: 8px 0 0; padding: 0; display: gr
   .malware-findings td.actions { padding-top: 8px !important; }
   .malware-findings td.actions form:first-child { margin-left: 0; }
 }
+/* Dashboard alerts: action + dismiss per item */
+ul.alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+ul.alerts > li { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.alert-actions { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
+.alert-actions form { display: inline; }
+.alert-actions .linkish.muted { color: var(--muted); }
