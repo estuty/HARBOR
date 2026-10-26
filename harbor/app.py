@@ -24,7 +24,7 @@ app = FastAPI(title="Harbor", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
 PUBLIC = ("/login", "/static/", "/ddns/", "/hooks/", "/dbadmin-check")
-ADMIN_ONLY = ("/users", "/settings", "/activity", "/mail", "/api/stats", "/security", "/import", "/health")
+ADMIN_ONLY = ("/users", "/settings", "/activity", "/mail", "/api/stats", "/security", "/import", "/health", "/alerts")
 SITE_RE = re.compile(r"^/(?:api/v1/)?sites/(\d+)")
 ZONE_RE = re.compile(r"^/(?:api/v1/)?dns/(\d+)")
 

@@ -17,6 +17,15 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
+@router.post("/alerts/dismiss")
+async def dismiss_alert(request: Request):
+    async with guard(request):
+        form = await form_of(request)
+        if alerts.dismiss(form.get("key", "")):
+            flash(request, "Dismissed. It comes back only if it gets worse.")
+    return back("/")
+
+
 # ---------- security ----------
 
 @router.get("/security")

@@ -30,11 +30,37 @@ def _subject(title: str, resolved: bool = False) -> str:
     return f"[{host}] {'Resolved: ' if resolved else ''}{title}"
 
 
-def fire(key: str, title: str, detail: str = "", severity: str = "warning", quiet: bool = False) -> None:
-    """quiet: record the problem (dashboard, Health) without sending a message; for callers that send their own."""
+SEV_RANK = {"warning": 1, "critical": 2}
+
+
+def _action_for(key: str) -> tuple[str, str]:
+    """A sensible 'act on this' link for an alert, derived from its key."""
+    prefix, _, rest = key.partition(":")
+    site_page = {"malware": "/malware", "malware-scan": "/malware", "backup": "/backups",
+                 "offsite": "/backups", "deploy": "/deploy", "quota": "/backups", "site": ""}
+    if prefix in site_page and rest.isdigit():
+        label = "Review" if prefix.startswith("malware") else ("Open site" if prefix == "site" else "Open")
+        return f"/sites/{rest}{site_page[prefix]}", label
+    if prefix == "malware":          # malware:signatures
+        return "/security#malware", "Open settings"
+    return "/health", "Open Health"  # disk, svc, cert, mailqueue and the rest live on Health
+
+
+def fire(key: str, title: str, detail: str = "", severity: str = "warning", quiet: bool = False,
+         action_url: str | None = None, action_label: str | None = None) -> None:
+    """quiet: record the problem (dashboard, Health) without sending a message; for callers that send their own.
+    Each alert carries an action link (given, or derived from the key) and can be dismissed from the dashboard;
+    a dismissed alert comes back only if it gets more severe."""
+    if action_url is None:
+        action_url, action_label = _action_for(key)
+    action_label = action_label or "Open"
     row = db.one("SELECT * FROM alerts WHERE key = ?", key)
     if row and row["resolved_at"] is None:
-        db.execute("UPDATE alerts SET title = ?, detail = ?, severity = ? WHERE key = ?", title, detail, severity, key)
+        # un-dismiss if the situation has escalated since it was dismissed
+        undismiss = (row["dismissed_at"] and SEV_RANK.get(severity, 1) > SEV_RANK.get(row["dismissed_sev"], 1))
+        db.execute("UPDATE alerts SET title = ?, detail = ?, severity = ?, action_url = ?, action_label = ?"
+                   + (", dismissed_at = NULL" if undismiss else "") + " WHERE key = ?",
+                   title, detail, severity, action_url, action_label, key)
         last = row["last_notified"]
         due = not last or (datetime.now(timezone.utc).replace(tzinfo=None) -
                            datetime.fromisoformat(last)).total_seconds() > REMIND_SECONDS
@@ -42,10 +68,13 @@ def fire(key: str, title: str, detail: str = "", severity: str = "warning", quie
             return
         prefix = "Still happening: "
     else:
-        db.execute("INSERT INTO alerts (key, title, detail, severity, first_seen, resolved_at) VALUES (?, ?, ?, ?, ?, NULL) "
+        db.execute("INSERT INTO alerts (key, title, detail, severity, first_seen, resolved_at, action_url, action_label) "
+                   "VALUES (?, ?, ?, ?, ?, NULL, ?, ?) "
                    "ON CONFLICT(key) DO UPDATE SET title = excluded.title, detail = excluded.detail, "
-                   "severity = excluded.severity, first_seen = excluded.first_seen, resolved_at = NULL, last_notified = NULL",
-                   key, title, detail, severity, _now())
+                   "severity = excluded.severity, first_seen = excluded.first_seen, resolved_at = NULL, "
+                   "last_notified = NULL, action_url = excluded.action_url, action_label = excluded.action_label, "
+                   "dismissed_at = NULL, dismissed_sev = ''",
+                   key, title, detail, severity, _now(), action_url, action_label)
         db.log(f"Alert: {title}", "monitor", "error" if severity == "critical" else "warn")
         prefix = ""
     if quiet:
@@ -67,7 +96,25 @@ def resolve(key: str) -> None:
 
 
 def active() -> list:
-    return db.all("SELECT * FROM alerts WHERE resolved_at IS NULL ORDER BY severity = 'critical' DESC, first_seen")
+    rows = db.all("SELECT * FROM alerts WHERE resolved_at IS NULL AND dismissed_at IS NULL "
+                  "ORDER BY severity = 'critical' DESC, first_seen")
+    out = []
+    for r in rows:
+        d = dict(r)
+        if not d.get("action_url"):      # alerts created before this column existed
+            d["action_url"], d["action_label"] = _action_for(d["key"])
+        out.append(d)
+    return out
+
+
+def dismiss(key: str) -> bool:
+    """Hide an alert from the dashboard. It returns only if it later becomes more severe."""
+    row = db.one("SELECT * FROM alerts WHERE key = ? AND resolved_at IS NULL AND dismissed_at IS NULL", key)
+    if not row:
+        return False
+    db.execute("UPDATE alerts SET dismissed_at = ?, dismissed_sev = ? WHERE key = ?", _now(), row["severity"], key)
+    db.log(f"Dismissed alert: {row['title']}", "admin")
+    return True
 
 
 # ---------- checks ----------

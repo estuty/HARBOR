@@ -29,7 +29,12 @@
 {% if alerts %}
 <section class="card alert-list">
   <div class="row between"><h2>Needs attention</h2><a class="more" href="/settings/alerts">Alert settings →</a></div>
-  <ul>{% for a in alerts %}<li class="sev-{{ a.severity }}"><strong>{{ a.title }}</strong><span class="muted small">{{ a.detail }} · since {{ a.first_seen }} UTC</span></li>{% endfor %}</ul>
+  <ul class="alerts">{% for a in alerts %}<li class="sev-{{ a.severity }}">
+      <div class="alert-body"><strong>{{ a.title }}</strong><span class="muted small">{{ a.detail }} · since {{ a.first_seen }} UTC</span></div>
+      <div class="alert-actions">
+        {% if a.action_url %}<a class="linkish" href="{{ a.action_url }}">{{ a.action_label }} →</a>{% endif %}
+        <form method="post" action="/alerts/dismiss"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="key" value="{{ a.key }}"><button class="linkish muted">Dismiss</button></form>
+      </div></li>{% endfor %}</ul>
 </section>
 {% endif %}
 {% if no_2fa %}

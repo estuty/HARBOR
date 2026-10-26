@@ -182,6 +182,13 @@ MIGRATIONS = [
         found_at TEXT DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT, resolved_by TEXT);
     CREATE INDEX malware_findings_site ON malware_findings(site_id, status);
     """,
+    # 12: dashboard alerts gain a per-alert action link and a dismiss state
+    """
+    ALTER TABLE alerts ADD COLUMN action_url TEXT NOT NULL DEFAULT '';
+    ALTER TABLE alerts ADD COLUMN action_label TEXT NOT NULL DEFAULT '';
+    ALTER TABLE alerts ADD COLUMN dismissed_at TEXT;
+    ALTER TABLE alerts ADD COLUMN dismissed_sev TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 
