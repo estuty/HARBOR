@@ -54,11 +54,12 @@ def test_fake_plugin_single_big_file(tmp_path):
     assert f and f[0].severity == "high" and "ridge-keeper-cue" in f[0].title
 
 
-def test_fake_plugin_name_mismatch(tmp_path):
-    hdr = "<?php\n/* Plugin Name: Totally Unrelated Thing */\n"
-    root, pub = make_wp(tmp_path, plugins=[("zzxx-backdoor", [("zzxx-backdoor.php", hdr), ("readme.txt", "x")])])
-    f = [x for x in wpcheck._fake_plugins(pub) if x.kind == "fake-plugin"]
-    assert f and f[0].severity == "review"
+def test_branded_plugin_name_not_flagged(tmp_path):
+    # real plugins routinely brand differently from their folder slug; this must NOT be flagged
+    hdr = "<?php\n/* Plugin Name: Noptin */\n"
+    root, pub = make_wp(tmp_path, plugins=[("newsletter-optin-box", [("noptin.php", hdr), ("readme.txt", "x"),
+                                                                      ("includes.php", "<?php")])])
+    assert [x for x in wpcheck._fake_plugins(pub) if x.kind == "fake-plugin"] == []
 
 
 def test_real_plugin_not_flagged(tmp_path):
@@ -82,21 +83,39 @@ def test_user_ini_prepend(tmp_path):
     assert wpcheck._user_ini(pub2) == []
 
 
-def test_checksum_parsing():
+def test_checksum_aggregated_and_categorised():
     core_out = ("Warning: File doesn't verify against checksum: wp-admin/includes/class-x.php\n"
-                "Warning: File should not exist: wp-includes/hello.php\n"
+                "Warning: File doesn't verify against checksum: wp-includes/load.php\n"
+                "Warning: File should not exist: wp-includes/evil.php\n"
+                "Warning: File doesn't exist: wp-includes/missing-one.php\n"
                 "Error: WordPress installation doesn't verify against checksums.\n")
     plugin_out = ("Warning: File doesn't verify against checksum: akismet/akismet.php\n"
                   "Warning: Could not retrieve the checksums for version 1.2 of plugin foobar, "
                   "please check the error log.\n")
-    calls = {"core": core_out, "plugin": plugin_out}
-    run = lambda args: (calls["core"] if args[0] == "core" else calls["plugin"], 1)
-    f = wpcheck._checksums(run)
-    kinds = [(x.kind, x.severity) for x in f]
-    assert ("core-modified", "high") in kinds
-    assert sum(1 for x in f if x.kind == "core-modified") == 2
-    assert ("plugin-modified", "high") in kinds
-    assert any(x.kind == "unverifiable-plugin" and "foobar" in x.title for x in f)
+    run = lambda args: ((core_out if args[0] == "core" else plugin_out), 1)
+    f = {x.kind: x for x in wpcheck._checksums(run)}
+    # modified files: one aggregated HIGH finding, not one per file
+    assert f["core-modified"].severity == "high" and "2 core file" in f["core-modified"].title
+    assert "wp-includes/load.php" in f["core-modified"].detail
+    assert f["core-extra"].severity == "review" and "evil.php" in f["core-extra"].detail
+    assert f["core-missing"].severity == "review" and "missing-one.php" in f["core-missing"].detail
+    assert f["plugin-modified"].severity == "high"
+    assert f["unverifiable-plugin"].severity == "review" and "foobar" in f["unverifiable-plugin"].detail
+
+
+def test_bundled_library_mismatch_is_not_malware():
+    # a big WordPress-bundled library (php-ai-client) out of sync with the manifest must not flood as "altered"
+    lines = ["Warning: File doesn't exist: wp-includes/php-ai-client/src/Providers/Models/Thing%d.php" % i for i in range(40)]
+    core_out = "\n".join(lines) + "\nError: WordPress installation doesn't verify against checksums.\n"
+    f = {x.kind: x for x in wpcheck._checksums(lambda args: ((core_out if args[0] == "core" else ""), 1))}
+    assert f == {}                                       # a bundled library out of sync produces no findings at all
+
+
+def test_too_many_core_diffs_is_inconclusive():
+    lines = ["Warning: File should not exist: wp-includes/x%d.php" % i for i in range(20)]
+    core_out = "\n".join(lines) + "\n"
+    f = {x.kind: x for x in wpcheck._checksums(lambda args: ((core_out if args[0] == "core" else ""), 1))}
+    assert "core-verify" in f and f["core-verify"].severity == "review" and "core-modified" not in f
 
 
 def test_admin_recent_flagged():

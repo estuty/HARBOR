@@ -88,43 +88,87 @@ class WpUnavailable(Exception):
 
 
 # ---------- integrity: official checksums ----------
+# Bundled third-party libraries whose files WordPress.org's checksum manifest often doesn't cover; a
+# mismatch there is a version/packaging difference, not malware.
+VENDOR_DIRS = ("/php-ai-client/", "/vendor/", "/node_modules/", "/sodium_compat/", "/requests/", "/dist/")
+# More core discrepancies than this across a scan is a version/manifest mismatch, not an injection
+# (real injected code is a handful of files, not dozens), so Harbor says "couldn't verify" instead of
+# flooding the page with scary findings.
+MANY_CORE = 12
+
 
 def _checksums(run_wp) -> list[Finding]:
     findings: list[Finding] = []
     out, _ = run_wp(["core", "verify-checksums"])
     if "Error establishing" in out or "command not found" in out or "Error: This does not seem to be a WordPress" in out:
         raise WpUnavailable("WordPress couldn't be loaded to verify it (database down or not a WordPress install).")
-    for path in _verify_lines(out):
-        findings.append(Finding("core-modified", "high", f"Core file altered or added: {path}",
-                                "A WordPress core file doesn't match the official release. Injected code hides here. "
-                                "Fix with: wp core download --force"))
+    modified, extra, missing = _categorize(out)
+    extra, missing = _not_vendor(extra), _not_vendor(missing)   # bundled-library files are packaging noise, not malware
+    if len(modified) + len(extra) > MANY_CORE:
+        findings.append(Finding("core-verify", "review", f"Core doesn't match the official release ({len(modified) + len(extra)} files)",
+                                "Too many differences to be injected code — this is almost always a version or bundled-library "
+                                "mismatch (for example a newer WordPress than the published checksums cover). If you didn't expect "
+                                "it, reinstall core: wp core download --force. Examples: " + _sample(modified + extra)))
+    else:
+        if modified:
+            findings.append(Finding("core-modified", "high", f"{len(modified)} core file(s) changed from the official release",
+                                    "A WordPress core file's contents differ from the official copy — this is where injected code "
+                                    "hides. Reinstall core: wp core download --force. Files: " + _sample(modified)))
+        if extra:
+            findings.append(Finding("core-extra", "review", f"{len(extra)} unexpected file(s) in core folders",
+                                    "Files in wp-admin/wp-includes that aren't part of WordPress — sometimes harmless leftovers, "
+                                    "sometimes a backdoor. Check them. Files: " + _sample(extra)))
+    if missing:                                     # an incomplete core, not a sign of malware
+        findings.append(Finding("core-missing", "review", f"{len(missing)} core file(s) missing (incomplete WordPress)",
+                                "Expected WordPress files aren't present. This isn't malware; restore them with "
+                                "wp core download --force. Files: " + _sample(missing)))
+
     out, _ = run_wp(["plugin", "verify-checksums", "--all"])
-    unverifiable = set()
-    for line in out.splitlines():
-        if "Could not retrieve the checksums" in line or "not in the WordPress.org" in line or "is not on WordPress.org" in line:
-            m = re.search(r"of plugin ['\"]?([\w-]+)|plugin ['\"]?([\w-]+)['\"]?,? |for ['\"]([\w-]+)['\"]", line)
-            if m:
-                unverifiable.add(next(g for g in m.groups() if g))
-    for path in _verify_lines(out):
-        findings.append(Finding("plugin-modified", "high", f"Plugin file altered or added: {path}",
-                                "A plugin file doesn't match the official release. Reinstall the plugin from wordpress.org."))
-    for slug in sorted(unverifiable):
-        findings.append(Finding("unverifiable-plugin", "review", f"Plugin can't be verified: {slug}",
-                                "Not on wordpress.org, so its files can't be checked against an official copy. "
-                                "Normal for paid plugins; a concern if you don't recognise it or it looks fake."))
+    pmod, _, _ = _categorize(out)
+    pmod = _not_vendor(pmod)
+    if pmod:
+        findings.append(Finding("plugin-modified", "high", f"{len(pmod)} plugin file(s) changed from the official release",
+                                "A plugin file differs from the official copy — reinstall the affected plugin(s) from "
+                                "wordpress.org. Files: " + _sample(pmod)))
+    unverifiable = sorted({s for line in out.splitlines() for s in [_unverifiable_slug(line)] if s})
+    if unverifiable:
+        findings.append(Finding("unverifiable-plugin", "review",
+                                f"{len(unverifiable)} plugin(s) can't be checked against wordpress.org",
+                                "Not on wordpress.org, so their files can't be compared to an official copy. Normal for paid "
+                                "plugins; a concern only for ones you don't recognise. Plugins: " + ", ".join(unverifiable)))
     return findings
 
 
-def _verify_lines(out: str) -> list[str]:
-    """Paths from 'File doesn't verify against checksum:' and 'File should not exist:' lines."""
-    paths = []
+def _categorize(out: str) -> tuple[list[str], list[str], list[str]]:
+    """Split verify-checksums output into (modified, unexpected-extra, missing) file paths."""
+    modified, extra, missing = [], [], []
     for line in out.splitlines():
-        m = re.search(r"(?:doesn't verify against checksum|should not exist):\s*(.+?)\s*$", line)
+        for pat, bucket in ((r"doesn't verify against checksum:\s*(.+?)\s*$", modified),
+                            (r"should not exist:\s*(.+?)\s*$", extra),
+                            (r"(?:File|file) doesn't exist:\s*(.+?)\s*$", missing)):
+            m = re.search(pat, line)
+            if m:
+                p = m.group(1).strip()
+                if p and "\n" not in p:
+                    bucket.append(p)
+                break
+    return modified[:500], extra[:500], missing[:500]
+
+
+def _not_vendor(paths: list[str]) -> list[str]:
+    return [p for p in paths if not any(v in "/" + p.replace(os.sep, "/") for v in VENDOR_DIRS)]
+
+
+def _sample(paths: list[str], n: int = 12) -> str:
+    return ", ".join(paths[:n]) + (f", and {len(paths) - n} more" if len(paths) > n else "")
+
+
+def _unverifiable_slug(line: str) -> str:
+    if "Could not retrieve the checksums" in line or "not in the WordPress.org" in line or "is not on WordPress.org" in line:
+        m = re.search(r"of plugin ['\"]?([\w-]+)|plugin ['\"]?([\w-]+)['\"]?,? |for ['\"]([\w-]+)['\"]", line)
         if m:
-            p = m.group(1).strip()
-            if p and "\n" not in p:
-                paths.append(p)
-    return paths[:200]
+            return next((g for g in m.groups() if g), "")
+    return ""
 
 
 # ---------- admin accounts ----------
@@ -205,7 +249,10 @@ def _dropins(install: Path) -> list[Finding]:
 
 
 def _fake_plugins(install: Path) -> list[Finding]:
-    """A plugin folder that is one very large PHP file, or whose declared name is unrelated to its folder."""
+    """A plugin folder that is one very large PHP file with no readme — the shape of a planted
+    backdoor (like the 2 MB 'Pixel Keeper' we found), not a real plugin. (A name that doesn't match
+    the folder is NOT used: legitimate plugins routinely brand differently from their slug, e.g.
+    'Noptin' in newsletter-optin-box, so it produced too many false alarms.)"""
     findings = []
     pdir = install / "wp-content" / "plugins"
     try:
@@ -218,39 +265,13 @@ def _fake_plugins(install: Path) -> list[Finding]:
                 continue
             php = [f for f in p.iterdir() if f.suffix == ".php" and not f.is_symlink() and f.is_file()]
             has_readme = any(f.name.lower() in ("readme.txt", "readme.md") for f in p.iterdir())
-            big = [f for f in php if f.stat().st_size > BIG_SINGLE_FILE]
             if len(php) == 1 and not has_readme and php[0].stat().st_size > BIG_SINGLE_FILE:
                 findings.append(Finding("fake-plugin", "high", f"Suspicious plugin: {p.name}",
                                         f"The whole plugin is a single {php[0].stat().st_size // 1024} KB PHP file with no readme — "
                                         "the shape of a planted backdoor, not a real plugin."))
-                continue
-            name = _plugin_header_name(php)
-            if name and not _name_matches_folder(name, p.name):
-                findings.append(Finding("fake-plugin", "review", f"Plugin name doesn't match its folder: {p.name}",
-                                        f"The folder is '{p.name}' but it calls itself '{name}'. Malware often disguises "
-                                        "itself this way — confirm it's a plugin you installed."))
         except OSError:
             pass
     return findings
-
-
-def _plugin_header_name(php_files) -> str:
-    for f in php_files:
-        try:
-            head = f.read_bytes()[:4096].decode("utf-8", "replace")
-        except OSError:
-            continue
-        m = re.search(r"Plugin Name:\s*(.+)", head)
-        if m:
-            return m.group(1).strip()
-    return ""
-
-
-def _name_matches_folder(name: str, folder: str) -> bool:
-    def toks(s):
-        return set(re.findall(r"[a-z0-9]+", s.lower()))
-    nt, ft = toks(name), toks(folder)
-    return bool(nt & ft) or not nt
 
 
 def _uploads_php(install: Path) -> list[Finding]:
