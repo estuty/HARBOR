@@ -43,7 +43,6 @@ php_admin_value[upload_tmp_dir] = {root}/tmp
 php_admin_value[session.save_path] = {root}/tmp
 php_admin_value[sys_temp_dir] = {root}/tmp
 php_admin_value[error_log] = {root}/logs/php-error.log
-php_admin_flag[log_errors] = on
 {ini}
 """
 
@@ -73,16 +72,41 @@ INI_KEYS = {
     "memory_limit": ("256M", "size"),
     "upload_max_filesize": ("256M", "size"),
     "post_max_size": ("256M", "size"),
+    "max_file_uploads": ("20", "int"),
     "max_execution_time": ("60", "int"),
     "max_input_time": ("60", "int"),
     "max_input_vars": ("3000", "int"),
     "session.gc_maxlifetime": ("1440", "int"),
     "date.timezone": ("UTC", "tz"),
     "display_errors": ("Off", "flag"),
+    "log_errors": ("On", "flag"),
     "short_open_tag": ("Off", "flag"),
+    "file_uploads": ("On", "flag"),
     "allow_url_fopen": ("On", "flag"),
+    "expose_php": ("On", "flag"),
 }
-ADMIN_ONLY = {"allow_url_fopen"}
+# Written as php_admin_* in the pool. Needed for directives PHP only honours at the system level
+# (max_file_uploads, file_uploads, expose_php), and for ones a site shouldn't override via .user.ini.
+ADMIN_ONLY = {"allow_url_fopen", "max_file_uploads", "file_uploads", "expose_php", "log_errors"}
+
+# One-line explanation shown under each setting in the panel.
+INI_HINTS = {
+    "memory_limit": "Memory one script may use",
+    "upload_max_filesize": "Largest single uploaded file",
+    "post_max_size": "Largest form submission (keep ≥ max upload)",
+    "max_file_uploads": "Files allowed in one upload",
+    "max_execution_time": "Seconds a script may run",
+    "max_input_time": "Seconds allowed to receive the request",
+    "max_input_vars": "Form fields accepted per request",
+    "session.gc_maxlifetime": "How long a login session lasts (seconds)",
+    "date.timezone": "Default time zone for dates",
+    "display_errors": "Show PHP errors on the page — keep Off in production",
+    "log_errors": "Write PHP errors to logs/php-error.log",
+    "short_open_tag": "Allow the <? … ?> short tag",
+    "file_uploads": "Allow file uploads at all",
+    "allow_url_fopen": "Let PHP open remote URLs as files (a common attack path)",
+    "expose_php": "Send the PHP version in HTTP response headers",
+}
 
 
 def effective_ini(overrides: dict) -> dict:

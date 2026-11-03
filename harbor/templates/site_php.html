@@ -18,7 +18,7 @@
   <div class="card">
     <h2>Limits at a glance</h2>
     <dl class="kv">
-      <dt>Max upload</dt><dd>{{ ini.upload_max_filesize }}</dd>
+      <dt>Max upload</dt><dd>{{ ini.upload_max_filesize }} ({{ ini.max_file_uploads }} files)</dd>
       <dt>Memory per request</dt><dd>{{ ini.memory_limit }}</dd>
       <dt>Max run time</dt><dd>{{ ini.max_execution_time }} s</dd>
     </dl>
@@ -37,7 +37,7 @@
       {% else %}
       <input name="{{ key }}" value="{{ ini[key] }}" spellcheck="false" {% if kind == 'tz' %}list="tz-list"{% endif %}>
       {% endif %}
-      <span class="muted small">Default {{ default }}</span>
+      <span class="muted small">{% if hints.get(key) %}{{ hints[key] }} · {% endif %}default {{ default }}</span>
     </label>
     {% endfor %}
     <datalist id="tz-list"><option>UTC</option><option>Europe/London</option><option>Europe/Berlin</option><option>America/New_York</option><option>America/Chicago</option><option>America/Los_Angeles</option><option>Asia/Tokyo</option><option>Asia/Kolkata</option><option>Australia/Sydney</option></datalist>

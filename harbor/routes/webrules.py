@@ -159,7 +159,7 @@ async def php_page(request: Request, site_id: int):
     site = get_site(site_id)
     overrides = db.site_settings(site).get("php_ini", {})
     return render(request, "site_php.html", site=site, tab="php", php_versions=phpfpm.available_versions(),
-                  ini=phpfpm.effective_ini(overrides), overrides=overrides, keys=phpfpm.INI_KEYS)
+                  ini=phpfpm.effective_ini(overrides), overrides=overrides, keys=phpfpm.INI_KEYS, hints=phpfpm.INI_HINTS)
 
 
 @router.post("/sites/{site_id}/php/ini")

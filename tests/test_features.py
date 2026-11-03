@@ -94,13 +94,21 @@ def test_php_ini():
     pool = (config.ETC / "php" / f"site{sid}.conf").read_text()
     assert "php_value[upload_max_filesize] = 256M" in pool and "php_value[post_max_size] = 256M" in pool
     assert "client_max_body_size 257M;" in vhost("php.test")
+    # system-level directives must be written as php_admin_*, and log_errors isn't duplicated in the pool
+    assert "php_admin_value[max_file_uploads] = 20" in pool and "php_admin_flag[expose_php] = off" not in pool
+    assert "php_admin_flag[log_errors] = on" in pool and pool.count("log_errors") == 1
     form = {"memory_limit": "512M", "upload_max_filesize": "200M", "post_max_size": "200M", "max_execution_time": "120",
-            "max_input_time": "60", "max_input_vars": "5000", "session.gc_maxlifetime": "1440",
-            "date.timezone": "Europe/London", "display_errors": "Off", "short_open_tag": "Off", "allow_url_fopen": "On"}
+            "max_input_time": "60", "max_input_vars": "5000", "session.gc_maxlifetime": "1440", "max_file_uploads": "50",
+            "date.timezone": "Europe/London", "display_errors": "Off", "short_open_tag": "Off", "allow_url_fopen": "On",
+            "log_errors": "Off", "file_uploads": "Off", "expose_php": "Off"}
     post(c, f"{page}/php/ini", form)
     pool = (config.ETC / "php" / f"site{sid}.conf").read_text()
     assert "php_value[memory_limit] = 512M" in pool and "php_value[date.timezone] = Europe/London" in pool
     assert "client_max_body_size 201M;" in vhost("php.test")
+    # the new options take effect, as php_admin_* (so a site can't override them via .user.ini)
+    assert "php_admin_value[max_file_uploads] = 50" in pool
+    assert "php_admin_flag[file_uploads] = off" in pool and "php_admin_flag[expose_php] = off" in pool
+    assert "php_admin_flag[log_errors] = off" in pool and pool.count("log_errors") == 1
     post(c, f"{page}/php/ini", dict(form, memory_limit="512M\nphp_admin_value[x]=1"))
     assert "use a size" in flashes(c, f"{page}/php")[0]
     post(c, f"{page}/php/ini", dict(form, post_max_size="10M"))
