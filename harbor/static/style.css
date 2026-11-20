@@ -429,3 +429,22 @@ ul.alerts > li { display: flex; align-items: flex-start; justify-content: space-
 .alert-actions { display: flex; align-items: center; gap: 16px; white-space: nowrap; }
 .alert-actions form { display: inline; }
 .alert-actions .linkish.muted { color: var(--muted); }
+/* Usage by site */
+.meters-head { margin-bottom: 8px; }
+.usage-table .num { text-align: right; white-space: nowrap; }
+.usage-table th.num { text-align: right; }
+.usage-table .bar { height: 4px; border-radius: 2px; background: var(--line); margin: 4px 0 2px; overflow: hidden; }
+.usage-table .bar > span { display: block; height: 100%; background: var(--accent); }
+.usage-table tfoot td { border-top: 2px solid var(--line); }
+@media (max-width: 760px) {
+  .usage-table thead { display: none; }
+  .usage-table, .usage-table tbody, .usage-table tr, .usage-table td, .usage-table tfoot { display: block; }
+  .usage-table tr { padding: 10px 14px; border-top: 1px solid var(--line); }
+  .usage-table td { border: 0 !important; padding: 2px 0 !important; text-align: left !important; }
+  .usage-table td.num { text-align: left !important; }
+  .usage-table tbody td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
+  .usage-table tbody td[data-label="Site"]::before { content: ""; }
+  .usage-table tfoot tr { display: flex; justify-content: space-between; gap: 12px; }
+  .usage-table tfoot td { padding: 1px 0 !important; }
+  .usage-table .bar { max-width: 200px; }
+}

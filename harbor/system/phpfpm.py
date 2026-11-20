@@ -6,6 +6,7 @@ systemd service (harbor-php-<site>.service). That gives every site:
 Sites created by Harbor 0.2 used a pool inside the shared php<ver>-fpm
 service; write_pool() migrates them automatically."""
 import re
+import time
 from pathlib import Path
 
 from .. import config
@@ -289,6 +290,33 @@ def usage(sysuser: str) -> dict:
         return int(v) if re.fullmatch(r"\d+", v or "") and int(v) < 2 ** 63 else None
     return {"memory": num("MemoryCurrent"), "cpu_seconds": (num("CPUUsageNSec") or 0) / 1e9,
             "tasks": num("TasksCurrent"), "state": vals.get("ActiveState", ""), "restarts": num("NRestarts")}
+
+
+def _cpu_nsec(users_units: dict) -> dict:
+    out = {}
+    for user, unit in users_units.items():
+        res = run(["systemctl", "show", unit, "-p", "CPUUsageNSec"], check=False)
+        m = re.search(r"CPUUsageNSec=(\d+)", res or "")
+        out[user] = int(m.group(1)) if m else 0
+    return out
+
+
+def cpu_percents(sysusers: list, interval: float = 0.5) -> dict:
+    """Live CPU use of each site's PHP pool, as a percent of one core, sampled over `interval`."""
+    units = {u: unit_name(u) for u in sysusers if uses_unit(u)}
+    if config.DRY_RUN or not units:
+        return {u: 0.0 for u in sysusers}
+    t0 = _cpu_nsec(units)
+    time.sleep(interval)
+    t1 = _cpu_nsec(units)
+    out = {}
+    for u in sysusers:
+        if u in units:
+            delta = max(0, t1.get(u, 0) - t0.get(u, 0))
+            out[u] = round(delta / 1e9 / interval * 100, 1)
+        else:
+            out[u] = 0.0
+    return out
 
 
 def php_binary(version: str) -> str:

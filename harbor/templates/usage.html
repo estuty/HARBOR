@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Usage by site{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Usage by site</h1>
+    <p class="muted">Disk, memory and CPU for each domain. Server totals: {{ server.disk_used|filesize }} of {{ server.disk_total|filesize }} disk,
+      {{ server.mem_used|filesize }} of {{ server.mem_total|filesize }} memory, {{ cores }} CPU cores.</p>
+  </div>
+  <form method="post" action="/usage/refresh" data-busy="Measuring…">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Recalculate disk</button>
+  </form>
+</header>
+
+<section class="card flush">
+  <table class="table usage-table">
+    <thead>
+      <tr>
+        <th>Site</th>
+        <th class="num">Disk</th>
+        <th>Files / database</th>
+        <th class="num">Memory</th>
+        <th class="num">CPU</th>
+        <th class="num">Workers</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td data-label="Site"><a href="/sites/{{ r.id }}">{{ r.domain }}</a></td>
+        <td data-label="Disk" class="num">
+          <strong>{{ r.disk|filesize }}</strong>
+          <div class="bar"><span style="width: {{ [r.disk_pct, 100]|min }}%"></span></div>
+          <span class="muted small">{{ r.disk_pct }}% of disk</span>
+        </td>
+        <td data-label="Files / database" class="muted small">
+          {{ r.files|filesize }} files · {{ r.db|filesize }} in {{ r.databases }} database{{ '' if r.databases == 1 else 's' }}
+        </td>
+        <td data-label="Memory" class="num">
+          {% if r.memory is not none %}{{ r.memory|filesize }}{% if r.memory_limit %} <span class="muted small">/ {{ r.memory_limit|filesize }}</span>{% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td data-label="CPU" class="num">{{ r.cpu }}%{% if r.cpu_limit %} <span class="muted small">/ {{ r.cpu_limit }}%</span>{% endif %}</td>
+        <td data-label="Workers" class="num">{% if r.workers is not none %}{{ r.workers }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="6" class="muted pad">No sites yet.</td></tr>{% endif %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+      <tr>
+        <td><strong>All sites</strong></td>
+        <td class="num"><strong>{{ totals.disk|filesize }}</strong></td>
+        <td class="muted small">{{ totals.files|filesize }} files · {{ totals.db|filesize }} databases</td>
+        <td class="num"><strong>{{ totals.memory|filesize }}</strong></td>
+        <td class="num"><strong>{{ totals.cpu }}%</strong></td>
+        <td class="num"><strong>{{ totals.workers }}</strong></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</section>
+
+<p class="muted small pad-side">
+  Memory, CPU and workers are read live from each site's PHP-FPM pool, so an idle site shows little — PHP workers start on
+  demand and stop when idle. Disk is measured with <code>du</code>{% if cached_disk %} and reused for a few minutes{% endif %};
+  use <strong>Recalculate disk</strong> for fresh numbers. Per-site visitor and bandwidth stats are on each site's Stats tab.
+</p>
+{% endblock %}

@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from pathlib import Path
 
@@ -37,6 +38,19 @@ def service_status(names: list[str]) -> dict[str, str]:
         out = run(["systemctl", "is-active", n], check=False).strip()
         result[n] = out or "unknown"
     return result
+
+
+def disk_bytes(path: Path) -> int:
+    """Fast disk use of a folder via `du` (symlinks counted as links, one filesystem);
+    falls back to a Python walk. Returns bytes."""
+    if not Path(path).exists():
+        return 0
+    if not config.DRY_RUN:
+        out = run(["du", "-sb", "--one-file-system", str(path)], check=False)
+        m = re.match(r"\s*(\d+)", out or "")
+        if m:
+            return int(m.group(1))
+    return dir_size(path)
 
 
 def dir_size(path: Path) -> int:

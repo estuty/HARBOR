@@ -1,3 +1,3 @@
-__version__ = "0.9.3"
+__version__ = "0.9.4"
 # Bumped when a release needs the installer re-run (new packages or system config).
 SYSTEM_VERSION = 9
