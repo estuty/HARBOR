@@ -135,6 +135,24 @@ async def api_stats():
     return stats.server()
 
 
+@router.get("/usage")
+async def usage_page(request: Request):
+    if not is_admin(request):
+        return back("/sites")
+    from ..services import usage as usage_svc
+    return render(request, "usage.html", **usage_svc.by_domain())
+
+
+@router.post("/usage/refresh")
+async def usage_refresh(request: Request):
+    async with guard(request):
+        await form_of(request)
+        from ..services import usage as usage_svc
+        usage_svc.refresh_disk()
+        flash(request, "Recalculated disk use.")
+    return back("/usage")
+
+
 @router.get("/activity")
 async def activity(request: Request):
     return render(request, "activity.html", rows=db.all("SELECT * FROM activity ORDER BY id DESC LIMIT 500"))

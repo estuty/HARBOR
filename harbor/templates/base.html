@@ -25,6 +25,7 @@
       {% if is_admin %}
       <span class="nav-label">Server</span>
       <a href="/users" class="{{ 'on' if path.startswith('/users') }}">Users</a>
+      <a href="/usage" class="{{ 'on' if path.startswith('/usage') }}">Usage</a>
       <a href="/security" class="{{ 'on' if path.startswith('/security') }}">Security</a>
       <a href="/settings" class="{{ 'on' if path.startswith('/settings') }}">Settings{% if update_available %} <span class="nav-badge" title="Harbor {{ update_available.version }} is available">Update</span>{% endif %}</a>
       <a href="/activity" class="{{ 'on' if path == '/activity' }}">Activity</a>
