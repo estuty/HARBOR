@@ -66,6 +66,21 @@ def db_suffix(value: str) -> str:
     return v
 
 
+MYSQL_HOST_RE = re.compile(r"^(?:%|(?:\d{1,3}|%)(?:\.(?:\d{1,3}|%)){3}|(?=.{1,253}$)[a-z0-9](?:[a-z0-9.\-]{0,251}[a-z0-9])?)$")
+
+
+def mysql_host(value: str) -> str:
+    """A host allowed to connect to a database: an IPv4 address, an address with % wildcards
+    (203.0.113.%), a hostname, or % for anywhere."""
+    v = (value or "").strip().lower()
+    if not MYSQL_HOST_RE.match(v):
+        raise ValidationError("Host: an IP address, a pattern like 203.0.113.%, a hostname, or % for anywhere")
+    for part in v.split("."):
+        if part.isdigit() and int(part) > 255:
+            raise ValidationError("That isn't a valid IP address")
+    return v
+
+
 def cron_schedule(value: str) -> str:
     v = " ".join((value or "").split())
     if v in CRON_MACROS:

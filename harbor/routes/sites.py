@@ -121,9 +121,11 @@ async def databases_page(request: Request, site_id: int):
         sizes = mysql.sizes([r["name"] for r in rows])
     except Exception:
         sizes = {}
-    from ..services import dbeditor
+    from ..services import dbeditor, remote_mysql
+    remote = {r["id"]: remote_mysql.hosts(r["id"]) for r in rows}
     return render(request, "site_databases.html", site=site, tab="databases", rows=rows, sizes=sizes,
-                  editor=dbeditor.available())
+                  editor=dbeditor.available(), remote=remote,
+                  remote_listening=db.get_setting("mysql_remote", "0") == "1")
 
 
 @router.post("/sites/{site_id}/databases")
@@ -150,6 +152,26 @@ async def db_op(request: Request, site_id: int, db_id: int, op: str):
             from ..services import dbeditor
             token = dbeditor.open_editor(site_id, db_id, actor(request))
             return back(f"/dbadmin/?harbor={token}")
+    return back(f"/sites/{site_id}/databases")
+
+
+@router.post("/sites/{site_id}/databases/{db_id}/remote/add")
+async def db_remote_add(request: Request, site_id: int, db_id: int):
+    from ..services import remote_mysql
+    async with guard(request):
+        form = await form_of(request)
+        remote_mysql.add_host(site_id, db_id, form.get("host", ""), actor(request))
+        flash(request, "Remote host allowed.")
+    return back(f"/sites/{site_id}/databases")
+
+
+@router.post("/sites/{site_id}/databases/{db_id}/remote/{host_id}/delete")
+async def db_remote_remove(request: Request, site_id: int, db_id: int, host_id: int):
+    from ..services import remote_mysql
+    async with guard(request):
+        await form_of(request)
+        remote_mysql.remove_host(site_id, db_id, host_id, actor(request))
+        flash(request, "Remote host removed.")
     return back(f"/sites/{site_id}/databases")
 
 

@@ -205,6 +205,12 @@ MIGRATIONS = [
         domain TEXT UNIQUE NOT NULL, redirect INTEGER NOT NULL DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP);
     """,
+    # 15: remote MySQL - hosts allowed to reach a database from outside localhost
+    """
+    CREATE TABLE db_remote_hosts (
+        id INTEGER PRIMARY KEY, db_id INTEGER NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
+        host TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE (db_id, host));
+    """,
 ]
 
 

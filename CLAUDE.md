@@ -38,6 +38,13 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
   the site's certificate — `cert_extra_domains(site)` feeds `ssl.issue(..., extra=...)`, and `enable_ssl`/`set_www`
   reissue to include them. A DNS zone pointing here is auto-created for the alias when Harbor manages DNS; a site can
   own several zones now, so `delete_site` drops them all. Subdomains and aliases share one **Domains** tab.
+- Remote MySQL (`services/remote_mysql.py`, `db_remote_hosts` table, Databases tab): per-database allowlist of hosts
+  that may connect from outside localhost. Each allowed host gets a `user@host` MariaDB account created with the same
+  password hash as `user@localhost` (`mysql.native_hash` → `mysql.add_host`), so the app's saved password keeps
+  working. While any remote host exists, a drop-in switches MariaDB to listen on all interfaces
+  (`mysql.set_remote_listening`, tracked by the `mysql_remote` setting); it reverts when the last host is removed.
+  `delete_database`/`delete_site` call `remote_mysql.cleanup_database` first. Host firewall/port 3306 is the admin's
+  responsibility (Harbor has no host firewall, only nginx/fail2ban).
 
 ## Tests
 

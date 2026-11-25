@@ -135,9 +135,10 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
     attempt(lambda: security.cleanup_site(site))
     attempt(lambda: mail.disable_domain(site_id, actor, remove_mail=remove_files))
     if drop_dbs:
-        from . import dbeditor
+        from . import dbeditor, remote_mysql
         for d in db.all("SELECT * FROM databases WHERE site_id = ?", site_id):
             attempt(lambda d=d: dbeditor.close_for_database(d["name"]))
+            attempt(lambda d=d: remote_mysql.cleanup_database(d, actor))
             attempt(lambda d=d: mysql.drop(d["name"], _user_if_unshared(d)))
     from . import malware
     attempt(lambda: malware.forget_site(site_id))
@@ -188,8 +189,9 @@ def delete_database(site_id: int, db_id: int, actor: str) -> None:
     row = db.one("SELECT * FROM databases WHERE id = ? AND site_id = ?", db_id, site_id)
     if not row:
         raise OpError("Database not found")
-    from . import dbeditor
+    from . import dbeditor, remote_mysql
     dbeditor.close_for_database(row["name"])
+    remote_mysql.cleanup_database(row, actor)
     mysql.drop(row["name"], _user_if_unshared(row))
     db.execute("DELETE FROM databases WHERE id = ?", db_id)
     db.log(f"Dropped database {row['name']}", actor)

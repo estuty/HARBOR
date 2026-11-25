@@ -152,6 +152,11 @@ input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=color]),
 input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; border-color: var(--accent); }
 .stack { display: grid; gap: 14px; }
 .stack-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tagform { display: inline-block; margin: 0 6px 6px 0; }
+.tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 9px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); }
+.tag code { border: 0; background: none; padding: 0; }
+.tag-x { border: 0; background: none; cursor: pointer; font-size: 1rem; line-height: 1; color: var(--muted); padding: 0 4px; border-radius: 99px; }
+.tag-x:hover { color: var(--bad); background: var(--bad-soft); }
 .section-title { margin: 22px 0 10px; font-size: 1.05rem; }
 .section-title:first-of-type { margin-top: 4px; }
 .row { display: flex; gap: 10px; align-items: center; }
