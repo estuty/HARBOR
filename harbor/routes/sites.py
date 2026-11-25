@@ -240,17 +240,40 @@ async def file_op(request: Request, site_id: int):
         elif op == "rename":
             fm.rename(root, form.get("target", ""), form.get("name", ""))
             flash(request, "Renamed.")
-        elif op == "delete":
-            fm.delete(root, form.get("target", ""))
-            flash(request, "Deleted.")
+        elif op == "chmod":
+            fm.set_mode(root, form.get("target", ""), form.get("name", ""))
+            flash(request, "Permissions changed.")
+        elif op in ("delete", "move", "copy", "compress"):
+            targets = form.getlist("sel") or ([form["target"]] if form.get("target") else [])
+            if not targets:
+                flash(request, "Nothing was selected.", "error")
+            elif op == "delete":
+                for t in targets:
+                    fm.delete(root, t)
+                flash(request, f"Deleted {len(targets)} item(s).")
+            elif op == "move":
+                n = fm.move(root, targets, form.get("to", ""), site["sysuser"])
+                flash(request, f"Moved {n} item(s) to {form.get('to', '') or 'the site root'}.")
+            elif op == "copy":
+                _need_disk_room(site)
+                n = fm.copy(root, targets, form.get("to", ""), site["sysuser"])
+                flash(request, f"Copied {n} item(s) to {form.get('to', '') or 'the site root'}.")
+            elif op == "compress":
+                _need_disk_room(site)
+                name = fm.compress(root, targets, rel, site["sysuser"], form.get("name", ""))
+                flash(request, f"Created {name}.")
         elif op == "extract":
-            if svc.over_disk_allowance(site):
-                raise OpError("This site is over its disk allowance. Delete some files or ask an admin to raise it.")
+            _need_disk_room(site)
             n = fm.extract(root, form.get("target", ""), site["sysuser"])
             flash(request, f"Extracted {n} file(s).")
         else:
             raise ValueError("Unknown action")
     return back(files_url(site_id, rel))
+
+
+def _need_disk_room(site) -> None:
+    if svc.over_disk_allowance(site):
+        raise OpError("This site is over its disk allowance. Delete some files or ask an admin to raise it.")
 
 
 # ---------- cron ----------

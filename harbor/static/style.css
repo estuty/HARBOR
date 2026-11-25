@@ -448,3 +448,10 @@ ul.alerts > li { display: flex; align-items: flex-start; justify-content: space-
   .usage-table tfoot td { padding: 1px 0 !important; }
   .usage-table .bar { max-width: 200px; }
 }
+/* File manager: selection */
+.table .check { width: 1%; white-space: nowrap; }
+.table .check input { width: 16px; height: 16px; }
+.bulkbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 14px;
+  background: var(--accent-soft, var(--surface-2)); border: 1px solid var(--line); border-radius: 10px; }
+.bulkbar .fm-to { flex: 1 1 200px; min-width: 160px; max-width: 420px; }
+.bulkbar .btn { padding: 5px 12px; }
