@@ -28,6 +28,29 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
 - `services/usage.py` + `/usage` show resource use per domain (disk via `du`, live memory/CPU/workers from each
   site's PHP-FPM systemd unit, database size from information_schema); disk is cached briefly.
 - Generated configs are tested (`nginx -t`, `php-fpm -t`, `named-checkzone`, `postmap`) and rolled back on failure.
+- Subdomains (`services/subdomains.py`, `routes/domains.py`, `subdomains` table): each has its own document root
+  under the parent site and its own nginx vhost (`nginx.render_subdomain`, confs named `harbor-sub-<fqdn>.conf`),
+  but shares the parent's PHP-FPM pool, socket and system user. Creating one makes the docroot (owned by the site
+  user) and, when Harbor manages the parent's DNS, adds a `managed='sub'` A record; `delete_site` calls
+  `subdomains.cleanup_site` to drop the vhosts and certs. SSL is per-subdomain (own Let's Encrypt cert).
+- Domain aliases (`services/aliases.py`, `site_aliases` table): a second domain that serves the same site
+  (extra `server_name` on the site's own vhost) or redirects to it (its own 301 server block). Alias names ride on
+  the site's certificate — `cert_extra_domains(site)` feeds `ssl.issue(..., extra=...)`, and `enable_ssl`/`set_www`
+  reissue to include them. A DNS zone pointing here is auto-created for the alias when Harbor manages DNS; a site can
+  own several zones now, so `delete_site` drops them all. Subdomains and aliases share one **Domains** tab.
+- Remote MySQL (`services/remote_mysql.py`, `db_remote_hosts` table, Databases tab): per-database allowlist of hosts
+  that may connect from outside localhost. Each allowed host gets a `user@host` MariaDB account created with the same
+  password hash as `user@localhost` (`mysql.native_hash` → `mysql.add_host`), so the app's saved password keeps
+  working. While any remote host exists, a drop-in switches MariaDB to listen on all interfaces
+  (`mysql.set_remote_listening`, tracked by the `mysql_remote` setting); it reverts when the last host is removed.
+  `delete_database`/`delete_site` call `remote_mysql.cleanup_database` first. Host firewall/port 3306 is the admin's
+  responsibility (Harbor has no host firewall, only nginx/fail2ban).
+- Custom TLS certificates (`system/ssl.py`, Overview HTTPS card): besides Let's Encrypt, a site can use an uploaded
+  cert. `ssl.install_custom` validates the cert/key pair with openssl and writes `fullchain.pem`/`privkey.pem` under
+  `NGINX_HARBOR/certs/<domain>`; the per-site setting `cert = "custom"` makes `vhost_spec` set `VhostSpec.cert_dir`
+  there instead of the Let's Encrypt path. `sites.cert_status` reads the active cert's issuer/expiry/SANs
+  (`ssl.info`, parsed by the testable `_parse_cert_text`) for the card. `enable_ssl` clears the custom flag (back to
+  LE); `remove_custom_cert` deletes the files and turns HTTPS off.
 
 ## Tests
 

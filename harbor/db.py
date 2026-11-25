@@ -189,6 +189,28 @@ MIGRATIONS = [
     ALTER TABLE alerts ADD COLUMN dismissed_at TEXT;
     ALTER TABLE alerts ADD COLUMN dismissed_sev TEXT NOT NULL DEFAULT '';
     """,
+    # 13: subdomains - each served from its own document root under the parent site,
+    # sharing the parent's PHP pool and system user
+    """
+    CREATE TABLE subdomains (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        label TEXT NOT NULL, fqdn TEXT UNIQUE NOT NULL, docroot TEXT NOT NULL,
+        ssl INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (site_id, label));
+    """,
+    # 14: domain aliases - a second domain that serves (or redirects to) an existing site
+    """
+    CREATE TABLE site_aliases (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        domain TEXT UNIQUE NOT NULL, redirect INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+    """,
+    # 15: remote MySQL - hosts allowed to reach a database from outside localhost
+    """
+    CREATE TABLE db_remote_hosts (
+        id INTEGER PRIMARY KEY, db_id INTEGER NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
+        host TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE (db_id, host));
+    """,
 ]
 
 

@@ -2,7 +2,7 @@
 from .. import config, db, validators
 from ..system import cron, mysql, nginx, phpfpm, ssl, users
 from ..system.runner import CommandError
-from . import OpError, apply_pool, apply_vhost, get_site, log, site_root, vhost_spec
+from . import OpError, apply_pool, apply_vhost, cert_extra_domains, get_site, log, site_root, vhost_spec
 
 
 # ---------- sites ----------
@@ -65,7 +65,7 @@ def set_www(site_id: int, include_www: bool, actor: str) -> None:
     db.execute("UPDATE sites SET include_www = ? WHERE id = ?", int(include_www), site_id)
     try:
         if site["ssl"]:
-            ssl.issue(site["domain"], include_www, str(site_root(site) / "public"))
+            ssl.issue(site["domain"], include_www, str(site_root(site) / "public"), extra=cert_extra_domains(site))
         apply_vhost(site_id)
     except CommandError as e:
         db.execute("UPDATE sites SET include_www = ? WHERE id = ?", site["include_www"], site_id)
@@ -76,7 +76,8 @@ def set_www(site_id: int, include_www: bool, actor: str) -> None:
 def enable_ssl(site_id: int, actor: str) -> None:
     site = get_site(site_id)
     try:
-        ssl.issue(site["domain"], bool(site["include_www"]), str(site_root(site) / "public"))
+        ssl.issue(site["domain"], bool(site["include_www"]), str(site_root(site) / "public"),
+                  extra=cert_extra_domains(site))
     except CommandError as e:
         msg = str(e)
         if "invalid email" in msg or "Unable to register an account" in msg:
@@ -87,12 +88,65 @@ def enable_ssl(site_id: int, actor: str) -> None:
             raise OpError(f"Let's Encrypt rate limit reached for {site['domain']}; try again later. {msg}")
         raise OpError(f"Certificate request failed. Check that DNS for {site['domain']} points to this server. {msg}")
     db.execute("UPDATE sites SET ssl = 1 WHERE id = ?", site_id)
+    st = db.site_settings(site)
+    st.pop("cert", None)  # back to the Let's Encrypt certificate
+    db.save_site_settings(site_id, st)
     try:
         apply_vhost(site_id)
     except CommandError as e:
         db.execute("UPDATE sites SET ssl = 0 WHERE id = ?", site_id)
         raise OpError(str(e))
     db.log(f"{site['domain']}: HTTPS enabled", actor)
+
+
+def install_custom_cert(site_id: int, cert: str, key: str, chain: str, actor: str) -> None:
+    site = get_site(site_id)
+    try:
+        ssl.install_custom(site["domain"], cert, key, chain)
+    except ssl.CertError as e:
+        raise OpError(str(e))
+    before_ssl, before = site["ssl"], db.site_settings(site)
+    after = db.site_settings(site)
+    after["cert"] = "custom"
+    db.save_site_settings(site_id, after)
+    db.execute("UPDATE sites SET ssl = 1 WHERE id = ?", site_id)
+    try:
+        apply_vhost(site_id)
+    except CommandError as e:
+        db.save_site_settings(site_id, before)
+        db.execute("UPDATE sites SET ssl = ? WHERE id = ?", before_ssl, site_id)
+        ssl.remove_custom(site["domain"])
+        raise OpError(f"nginx rejected the certificate, nothing was changed. ({e})")
+    db.log(f"{site['domain']}: uploaded certificate installed", actor)
+
+
+def remove_custom_cert(site_id: int, actor: str) -> None:
+    """Remove the uploaded certificate and turn HTTPS off (re-enable for a free Let's Encrypt cert)."""
+    site = get_site(site_id)
+    st = db.site_settings(site)
+    st.pop("cert", None)
+    db.save_site_settings(site_id, st)
+    db.execute("UPDATE sites SET ssl = 0 WHERE id = ?", site_id)
+    apply_vhost(site_id)
+    ssl.remove_custom(site["domain"])
+    db.log(f"{site['domain']}: uploaded certificate removed, HTTPS turned off", actor)
+
+
+def cert_status(site) -> dict | None:
+    """Source and details of the active certificate for the overview page, or None when HTTPS is off."""
+    if not site["ssl"]:
+        return None
+    custom = db.site_settings(site).get("cert") == "custom"
+    detail = ssl.info(site["domain"], custom)
+    days_left = None
+    if detail and detail.get("not_after"):
+        from datetime import datetime, timezone
+        try:
+            exp = datetime.strptime(detail["not_after"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            days_left = (exp - datetime.now(timezone.utc)).days
+        except ValueError:
+            pass
+    return {"source": "custom" if custom else "letsencrypt", "detail": detail, "days_left": days_left}
 
 
 def disable_ssl(site_id: int, actor: str) -> None:
@@ -115,7 +169,7 @@ def set_sftp(site_id: int, password: str | None, actor: str) -> None:
 
 
 def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) -> None:
-    from . import dns, mail, security
+    from . import dns, mail, security, subdomains
     site = get_site(site_id)
     errors = []
 
@@ -125,25 +179,29 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
         except Exception as e:
             errors.append(str(e))
 
+    attempt(lambda: subdomains.cleanup_site(site))
     attempt(lambda: nginx.remove(site["domain"]))
     attempt(lambda: phpfpm.remove_pool(site["sysuser"]))
     attempt(lambda: cron.sync(site["sysuser"], []))
     if site["ssl"]:
         attempt(lambda: ssl.delete(site["domain"]))
+    attempt(lambda: ssl.remove_custom(site["domain"]))
     attempt(lambda: security.cleanup_site(site))
     attempt(lambda: mail.disable_domain(site_id, actor, remove_mail=remove_files))
     if drop_dbs:
-        from . import dbeditor
+        from . import dbeditor, remote_mysql
         for d in db.all("SELECT * FROM databases WHERE site_id = ?", site_id):
             attempt(lambda d=d: dbeditor.close_for_database(d["name"]))
+            attempt(lambda d=d: remote_mysql.cleanup_database(d, actor))
             attempt(lambda d=d: mysql.drop(d["name"], _user_if_unshared(d)))
     from . import malware
     attempt(lambda: malware.forget_site(site_id))
     users.delete(site["sysuser"], site["domain"], remove_files)
-    zone = db.one("SELECT id FROM dns_zones WHERE site_id = ?", site_id)
+    zones = db.all("SELECT id FROM dns_zones WHERE site_id = ?", site_id)  # the site's own zone and any alias zones
     db.execute("DELETE FROM sites WHERE id = ?", site_id)
-    if zone and remove_files:
-        attempt(lambda: dns.delete_zone(zone["id"], actor))
+    if remove_files:
+        for z in zones:
+            attempt(lambda z=z: dns.delete_zone(z["id"], actor))
     db.log(f"Deleted site {site['domain']}" + (f" (warnings: {'; '.join(errors)})" if errors else ""),
            actor, "warn" if errors else "info")
 
@@ -185,8 +243,9 @@ def delete_database(site_id: int, db_id: int, actor: str) -> None:
     row = db.one("SELECT * FROM databases WHERE id = ? AND site_id = ?", db_id, site_id)
     if not row:
         raise OpError("Database not found")
-    from . import dbeditor
+    from . import dbeditor, remote_mysql
     dbeditor.close_for_database(row["name"])
+    remote_mysql.cleanup_database(row, actor)
     mysql.drop(row["name"], _user_if_unshared(row))
     db.execute("DELETE FROM databases WHERE id = ?", db_id)
     db.log(f"Dropped database {row['name']}", actor)

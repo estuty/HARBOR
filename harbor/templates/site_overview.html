@@ -23,22 +23,51 @@
   <div class="card">
     <h2>HTTPS</h2>
     {% if site.ssl %}
+      {% if cert and cert.source == 'custom' %}
+      <p><span class="pill ok">On</span> Using an uploaded certificate. HTTP redirects to HTTPS.</p>
+      {% else %}
       <p><span class="pill ok">On</span> Let's Encrypt certificate, renewed automatically. HTTP redirects to HTTPS.</p>
-      <form method="post" action="/sites/{{ site.id }}/ssl/disable" data-confirm="Turn off HTTPS for {{ site.domain }}?">
-        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Turn off HTTPS</button>
-      </form>
+      {% endif %}
+      {% if cert and cert.detail %}
+      <dl class="kv small">
+        {% if cert.detail.issuer %}<dt>Issued by</dt><dd>{{ cert.detail.issuer }}</dd>{% endif %}
+        {% if cert.detail.not_after %}<dt>Expires</dt><dd>{{ cert.detail.not_after }}{% if cert.days_left is not none %} <span class="pill {{ 'bad' if cert.days_left < 0 else 'warn' if cert.days_left < 15 else '' }}">{{ 'expired' if cert.days_left < 0 else cert.days_left ~ ' days left' }}</span>{% endif %}</dd>{% endif %}
+        {% if cert.detail.sans %}<dt>Covers</dt><dd>{{ cert.detail.sans|join(', ') }}</dd>{% endif %}
+      </dl>
+      {% endif %}
+      <div class="row">
+        {% if cert and cert.source == 'custom' %}
+        <form method="post" action="/sites/{{ site.id }}/ssl/custom/remove" data-confirm="Remove the uploaded certificate and turn HTTPS off?">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Remove uploaded certificate</button></form>
+        {% else %}
+        <form method="post" action="/sites/{{ site.id }}/ssl/disable" data-confirm="Turn off HTTPS for {{ site.domain }}?">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Turn off HTTPS</button></form>
+        {% endif %}
+      </div>
     {% else %}
       <p class="muted">Before enabling, make sure <code>{{ site.domain }}</code>{% if site.include_www %} and <code>www.{{ site.domain }}</code>{% endif %} point to this server's IP address.</p>
       <form method="post" action="/sites/{{ site.id }}/ssl/enable" data-busy="Requesting certificate…">
         <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary">Get free certificate</button>
       </form>
     {% endif %}
-    <h3>Domain aliases</h3>
+    <details class="mt">
+      <summary class="linkish">Upload my own certificate</summary>
+      <form method="post" action="/sites/{{ site.id }}/ssl/custom" class="stack mt">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Certificate (PEM)<textarea name="cert" rows="4" required spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>
+        <label>Private key (PEM)<textarea name="key" rows="4" required spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></label>
+        <label>CA bundle / chain (optional)<textarea name="chain" rows="3" spellcheck="false" placeholder="-----BEGIN CERTIFICATE----- (intermediates)"></textarea></label>
+        <p class="muted small">For a purchased or wildcard certificate. The key must not be password-protected. This replaces the Let's Encrypt certificate for {{ site.domain }}.</p>
+        <div><button class="btn primary">Install certificate</button></div>
+      </form>
+    </details>
+    <h3>www</h3>
     <form method="post" action="/sites/{{ site.id }}/www" class="row">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label class="check"><input type="checkbox" name="include_www" value="1" {{ 'checked' if site.include_www }}> Answer on www.{{ site.domain }}</label>
       <button class="btn">Save</button>
     </form>
+    <p class="muted small">Other domains that point at this site are on the <a href="/sites/{{ site.id }}/subdomains">Domains</a> tab.</p>
   </div>
 </section>
 

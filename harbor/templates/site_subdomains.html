@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Domains · {{ site.domain }}{% endblock %}
+{% block content %}
+{% include "_site_head.html" %}
+
+<h2 class="section-title">Subdomains</h2>
+<section class="card flush">
+  {% if subdomains %}
+  <table class="table">
+    <thead><tr><th>Subdomain</th><th>Document root</th><th>HTTPS</th><th></th></tr></thead>
+    <tbody>
+    {% for s in subdomains %}
+    <tr>
+      <td><a href="http{{ 's' if s.ssl }}://{{ s.fqdn }}" target="_blank" rel="noopener">{{ s.fqdn }}</a></td>
+      <td><code>{{ s.docroot }}</code></td>
+      <td>
+        <form method="post" action="/sites/{{ site.id }}/subdomains/{{ s.id }}/ssl"
+              {% if not s.ssl %}data-confirm="Request a Let's Encrypt certificate for {{ s.fqdn }}? Its DNS must already point to this server."{% endif %}>
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="enable" value="{{ 0 if s.ssl else 1 }}">
+          {% if s.ssl %}<span class="pill ok">On</span> <button class="linkish">Turn off</button>
+          {% else %}<button class="linkish">Enable HTTPS</button>{% endif %}
+        </form>
+      </td>
+      <td class="actions">
+        <form method="post" action="/sites/{{ site.id }}/subdomains/{{ s.id }}/delete"
+              data-confirm="Remove {{ s.fqdn }}? This removes its web address; tick below to delete its files too.">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label class="check small"><input type="checkbox" name="remove_files" value="1"> delete files</label>
+          <button class="linkish danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No subdomains yet. Add one below, e.g. <code>blog.{{ site.domain }}</code>.</div>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Add a subdomain</h2>
+  <form method="post" action="/sites/{{ site.id }}/subdomains" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Sub-name
+      <span class="prefix"><input name="label" placeholder="blog" required spellcheck="false" autocomplete="off"><code>.{{ site.domain }}</code></span>
+    </label>
+    <label>Document root <input name="docroot" placeholder="public/blog" spellcheck="false" autocomplete="off"></label>
+    <p class="muted small">The folder its files live in, inside this site. Leave blank to use <code>public/&lt;sub-name&gt;</code>. It's created if it doesn't exist and shares this site's PHP version and user.</p>
+    <div><button class="btn primary">Add subdomain</button></div>
+  </form>
+  <p class="muted small">
+    {% if dns_on %}An <code>A</code> record is added to this domain's DNS zone automatically.{% else %}Point the subdomain's DNS at this server; Harbor isn't managing this domain's DNS.{% endif %}
+    Enable HTTPS once DNS has propagated.
+  </p>
+</section>
+
+<h2 class="section-title">Aliases</h2>
+<section class="card flush">
+  {% if aliases %}
+  <table class="table">
+    <thead><tr><th>Domain</th><th>Behaviour</th><th></th></tr></thead>
+    <tbody>
+    {% for a in aliases %}
+    <tr>
+      <td><a href="http{{ 's' if site.ssl }}://{{ a.domain }}" target="_blank" rel="noopener">{{ a.domain }}</a></td>
+      <td>
+        <form method="post" action="/sites/{{ site.id }}/aliases/{{ a.id }}/redirect" class="stack-row">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="redirect" value="{{ 0 if a.redirect else 1 }}">
+          {% if a.redirect %}Redirects to {{ site.domain }} <button class="linkish">Serve same content instead</button>
+          {% else %}Serves this site <button class="linkish">Redirect to {{ site.domain }} instead</button>{% endif %}
+        </form>
+      </td>
+      <td class="actions">
+        <form method="post" action="/sites/{{ site.id }}/aliases/{{ a.id }}/delete"
+              data-confirm="Remove the alias {{ a.domain }}?">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          {% if dns_on %}<label class="check small"><input type="checkbox" name="remove_zone" value="1"> delete its DNS zone</label>{% endif %}
+          <button class="linkish danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No aliases yet. Point another domain you own at this site below.</div>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Add an alias</h2>
+  <form method="post" action="/sites/{{ site.id }}/aliases" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Domain <input name="domain" placeholder="example.net" required spellcheck="false" autocomplete="off"></label>
+    <label class="check"><input type="checkbox" name="redirect" value="1"> Redirect it to {{ site.domain }} instead of serving the same content</label>
+    <div><button class="btn primary">Add alias</button></div>
+  </form>
+  <p class="muted small">
+    The alias shares this site's files and certificate. {% if dns_on %}A DNS zone pointing here is created for it automatically.{% else %}Point its DNS at this server yourself.{% endif %}
+    {% if site.ssl %}Its certificate is reissued to include the alias.{% else %}Enable HTTPS on the Overview tab to cover it with a certificate.{% endif %}
+  </p>
+</section>
+{% endblock %}

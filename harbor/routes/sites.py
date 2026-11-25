@@ -59,6 +59,7 @@ async def site_overview(request: Request, site_id: int):
                   db_count=db.one("SELECT COUNT(*) c FROM databases WHERE site_id = ?", site_id)["c"],
                   cron_count=db.one("SELECT COUNT(*) c FROM cron_jobs WHERE site_id = ?", site_id)["c"],
                   apps=db.all("SELECT * FROM app_installs WHERE site_id = ?", site_id),
+                  cert=svc.cert_status(site),
                   host=request.url.hostname)
 
 
@@ -73,9 +74,12 @@ def _simple(path: str, fn, ok: str, to: str = ""):
 
 
 _simple("php", lambda i, f, a: svc.change_php(i, f.get("php_version", ""), a), "PHP version updated.", "/sites/{id}/php")
-_simple("www", lambda i, f, a: svc.set_www(i, f.get("include_www") == "1", a), "Domain aliases updated.")
+_simple("www", lambda i, f, a: svc.set_www(i, f.get("include_www") == "1", a), "www setting saved.")
 _simple("ssl/enable", lambda i, f, a: svc.enable_ssl(i, a), "HTTPS is on. Certificates renew automatically.")
 _simple("ssl/disable", lambda i, f, a: svc.disable_ssl(i, a), "HTTPS turned off.")
+_simple("ssl/custom", lambda i, f, a: svc.install_custom_cert(
+    i, f.get("cert", ""), f.get("key", ""), f.get("chain", ""), a), "Certificate installed.")
+_simple("ssl/custom/remove", lambda i, f, a: svc.remove_custom_cert(i, a), "Uploaded certificate removed.")
 _simple("sftp/disable", lambda i, f, a: svc.set_sftp(i, None, a), "SFTP access disabled.")
 _simple("limits", lambda i, f, a: svc.set_limits(i, f, a), "Limits applied. PHP for this site restarted with them.")
 _simple("cron", lambda i, f, a: svc.add_cron(i, f.get("schedule", ""), f.get("command", ""), a),
@@ -121,9 +125,11 @@ async def databases_page(request: Request, site_id: int):
         sizes = mysql.sizes([r["name"] for r in rows])
     except Exception:
         sizes = {}
-    from ..services import dbeditor
+    from ..services import dbeditor, remote_mysql
+    remote = {r["id"]: remote_mysql.hosts(r["id"]) for r in rows}
     return render(request, "site_databases.html", site=site, tab="databases", rows=rows, sizes=sizes,
-                  editor=dbeditor.available())
+                  editor=dbeditor.available(), remote=remote,
+                  remote_listening=db.get_setting("mysql_remote", "0") == "1")
 
 
 @router.post("/sites/{site_id}/databases")
@@ -150,6 +156,26 @@ async def db_op(request: Request, site_id: int, db_id: int, op: str):
             from ..services import dbeditor
             token = dbeditor.open_editor(site_id, db_id, actor(request))
             return back(f"/dbadmin/?harbor={token}")
+    return back(f"/sites/{site_id}/databases")
+
+
+@router.post("/sites/{site_id}/databases/{db_id}/remote/add")
+async def db_remote_add(request: Request, site_id: int, db_id: int):
+    from ..services import remote_mysql
+    async with guard(request):
+        form = await form_of(request)
+        remote_mysql.add_host(site_id, db_id, form.get("host", ""), actor(request))
+        flash(request, "Remote host allowed.")
+    return back(f"/sites/{site_id}/databases")
+
+
+@router.post("/sites/{site_id}/databases/{db_id}/remote/{host_id}/delete")
+async def db_remote_remove(request: Request, site_id: int, db_id: int, host_id: int):
+    from ..services import remote_mysql
+    async with guard(request):
+        await form_of(request)
+        remote_mysql.remove_host(site_id, db_id, host_id, actor(request))
+        flash(request, "Remote host removed.")
     return back(f"/sites/{site_id}/databases")
 
 

@@ -46,10 +46,38 @@ def is_full_hostname(value: str) -> bool:
     return bool(DOMAIN_RE.match((value or "").strip().lower().rstrip(".")))
 
 
+SUBLABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))*$")
+
+
+def subdomain_label(value: str) -> str:
+    """A sub-name under an existing site, like blog or dev.api (no leading www or *)."""
+    v = (value or "").strip().lower().rstrip(".")
+    if v.startswith("www."):
+        v = v[4:]
+    if v in ("", "www") or not SUBLABEL_RE.match(v) or len(v) > 100:
+        raise ValidationError("Sub-name: a label like blog or shop (letters, digits and -)")
+    return v
+
+
 def db_suffix(value: str) -> str:
     v = (value or "").strip().lower()
     if not DB_SUFFIX_RE.match(v):
         raise ValidationError("Database name: 1-24 characters, lowercase letters, digits and _ only")
+    return v
+
+
+MYSQL_HOST_RE = re.compile(r"^(?:%|(?:\d{1,3}|%)(?:\.(?:\d{1,3}|%)){3}|(?=.{1,253}$)[a-z0-9](?:[a-z0-9.\-]{0,251}[a-z0-9])?)$")
+
+
+def mysql_host(value: str) -> str:
+    """A host allowed to connect to a database: an IPv4 address, an address with % wildcards
+    (203.0.113.%), a hostname, or % for anywhere."""
+    v = (value or "").strip().lower()
+    if not MYSQL_HOST_RE.match(v):
+        raise ValidationError("Host: an IP address, a pattern like 203.0.113.%, a hostname, or % for anywhere")
+    for part in v.split("."):
+        if part.isdigit() and int(part) > 255:
+            raise ValidationError("That isn't a valid IP address")
     return v
 
 

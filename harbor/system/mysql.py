@@ -62,6 +62,59 @@ def drop_user(user: str) -> None:
     _sql(f"DROP USER IF EXISTS '{_check_user(user)}'@'localhost';\nFLUSH PRIVILEGES;\n")
 
 
+# ---------- remote access (host grants) ----------
+
+HOST_RE = re.compile(r"^(?:%|(?:[0-9]{1,3}|%)(?:\.(?:[0-9]{1,3}|%)){3}|[A-Za-z0-9](?:[A-Za-z0-9.\-]{0,253}[A-Za-z0-9])?)$")
+
+
+def _check_host(host: str) -> str:
+    if not HOST_RE.match(host or "") or len(host) > 255:
+        raise ValueError(f"Unsafe MySQL host: {host!r}")
+    return host
+
+
+def native_hash(user: str) -> str:
+    """The stored password hash of user@localhost, so remote-host accounts can be created
+    with the same credentials (the application's saved password keeps working)."""
+    from .. import config
+    if config.DRY_RUN:
+        return "*0000000000000000000000000000000000000000"
+    out = _sql("SELECT COALESCE(NULLIF(authentication_string, ''), Password) "
+               f"FROM mysql.user WHERE User = '{_check_user(user)}' AND Host = 'localhost';\n").strip()
+    return out
+
+
+def add_host(db: str, user: str, host: str, hash: str) -> None:
+    """Allow user@host to reach this database, using the same password as user@localhost."""
+    db, user, host = _check(db), _check_user(user), _check_host(host)
+    if not NATIVE_HASH_RE.match(hash or ""):
+        raise ValueError("Could not read the database user's password hash")
+    _sql(f"CREATE USER IF NOT EXISTS '{user}'@'{host}' IDENTIFIED BY PASSWORD '{hash}';\n"
+         f"GRANT ALL PRIVILEGES ON `{db}`.* TO '{user}'@'{host}';\nFLUSH PRIVILEGES;\n")
+
+
+def revoke_host(db: str, user: str, host: str, drop_user: bool) -> None:
+    """Revoke this database from user@host; drop the account entirely when it keeps no other database."""
+    db, user, host = _check(db), _check_user(user), _check_host(host)
+    sql = f"REVOKE ALL PRIVILEGES ON `{db}`.* FROM '{user}'@'{host}';\n"
+    if drop_user:
+        sql += f"DROP USER IF EXISTS '{user}'@'{host}';\n"
+    _sql(sql + "FLUSH PRIVILEGES;\n")
+
+
+def set_remote_listening(enable: bool) -> None:
+    """Add or remove a drop-in so MariaDB listens on all interfaces (needed for remote access)."""
+    from .. import config
+    from .runner import run
+    path = config.p("/etc/mysql/mariadb.conf.d/99-harbor-remote.cnf")
+    if enable:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Managed by Harbor - remote database access\n[mysqld]\nbind-address = 0.0.0.0\n")
+    else:
+        path.unlink(missing_ok=True)
+    run(["systemctl", "restart", "mariadb"], check=False)
+
+
 # ---------- used by the cPanel importer ----------
 
 def exists(db: str) -> bool:

@@ -6,7 +6,7 @@ applies, and restores the previous database state if applying fails."""
 import logging
 
 from .. import config, db
-from ..system import nginx, phpfpm, users
+from ..system import nginx, phpfpm, ssl, users
 from ..system.runner import CommandError
 
 log = logging.getLogger("harbor")
@@ -59,7 +59,17 @@ def vhost_spec(site) -> nginx.VhostSpec:
         hotlink={"exts": hot["exts"], "allowed": hot.get("allowed", [])} if hot.get("enabled") else None,
         modsec_file=modsec_file(site) if config.features()["modsec"] and modsec.get("mode", "off") != "off" else None,
         max_body_mb=body_mb + 1,
+        aliases=[dict(a) for a in db.all("SELECT domain, redirect FROM site_aliases WHERE site_id = ?", site["id"])],
+        cert_dir=ssl.cert_dir(site["domain"], True) if st.get("cert") == "custom" else None,
     )
+
+
+def cert_extra_domains(site) -> list[str]:
+    """Alias names (each alias domain and its www) that belong on the site's certificate."""
+    out = []
+    for a in db.all("SELECT domain FROM site_aliases WHERE site_id = ?", site["id"]):
+        out += [a["domain"], f"www.{a['domain']}"]
+    return out
 
 
 def apply_vhost(site_id: int) -> None:

@@ -35,6 +35,44 @@
 {% else %}The database editor isn't installed on this server yet. Run <code>sudo bash /opt/harbor/source/install.sh</code> to add it.{% endif %}</p>
 {% endif %}
 
+{% if rows %}
+<section class="card">
+  <h2>Remote access</h2>
+  <p class="muted">By default databases only accept connections from this server (<code>localhost</code>). Allow an outside
+    host — an app server or your own IP — to connect to a database. The host uses the same username and password as
+    <code>localhost</code>.</p>
+  <table class="table">
+    <thead><tr><th>Database</th><th>Allowed hosts</th><th>Allow a host</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><code>{{ r.name }}</code></td>
+      <td>
+        {% for h in remote.get(r.id, []) %}
+        <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/remote/{{ h.id }}/delete" class="tagform" data-confirm="Stop {{ h.host }} from connecting to {{ r.name }}?">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <span class="tag"><code>{{ h.host }}</code><button class="tag-x" title="Remove" aria-label="Remove {{ h.host }}">×</button></span>
+        </form>
+        {% else %}<span class="muted small">localhost only</span>{% endfor %}
+      </td>
+      <td>
+        <form method="post" action="/sites/{{ site.id }}/databases/{{ r.id }}/remote/add" class="row">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input name="host" placeholder="203.0.113.5 or 203.0.113.%" required spellcheck="false" autocomplete="off" aria-label="Host for {{ r.name }}">
+          <button class="btn">Allow</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">
+    {% if remote_listening %}MariaDB is listening on all interfaces because at least one host is allowed.{% else %}MariaDB listens only on localhost until you allow a host.{% endif %}
+    Make sure your server firewall allows port <code>3306</code> from those hosts, and prefer a specific address over <code>%</code> (anywhere).
+  </p>
+</section>
+{% endif %}
+
 <section class="card narrow">
   <h2>New database</h2>
   <p class="muted">A user with the same name and full access to it is created automatically. Host is <code>localhost</code>.</p>
