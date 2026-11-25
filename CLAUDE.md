@@ -72,6 +72,9 @@ HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
 
 - File manager (`system/files.py`): `extract` unpacks zip/tar archives in place, confined inside the site root
   (no `..`, absolute paths or symlink escape), with file-count and uncompressed-size caps against zip bombs.
+  `move`/`copy`/`compress` act on a multi-selection (checkboxes post repeated `sel`; route uses `form.getlist`),
+  and `set_mode` (chmod) changes octal permissions. All reuse `safe_path` confinement, refuse the site folder and
+  the PROTECTED set, skip collisions with `_unique`, and `copy`/`compress` check the disk allowance first.
 
 ## Releases
 

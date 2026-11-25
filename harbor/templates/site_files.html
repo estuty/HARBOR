@@ -26,15 +26,28 @@
   </div>
 </div>
 
+<form id="fmbulk" method="post" action="/sites/{{ site.id }}/files/op" class="bulkbar" data-fm-bar hidden>
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="dir" value="{{ rel }}">
+  <span class="muted small" data-fm-count>0 selected</span>
+  <input name="to" value="{{ rel }}" class="fm-to" aria-label="Destination folder" placeholder="destination folder, e.g. public/old">
+  <button name="op" value="move" class="btn">Move</button>
+  <button name="op" value="copy" class="btn">Copy</button>
+  <button name="op" value="compress" class="btn">Compress</button>
+  <button name="op" value="delete" class="btn danger" data-confirm>Delete</button>
+</form>
+
 <section class="card flush dropzone" data-drop>
 <table class="table files">
-  <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Mode</th><th></th></tr></thead>
+  <thead><tr>
+    <th class="check"><input type="checkbox" data-fm-all aria-label="Select all"></th>
+    <th>Name</th><th>Size</th><th>Modified</th><th>Mode</th><th></th></tr></thead>
   <tbody>
   {% if parent is not none %}
-  <tr><td colspan="5"><a href="/sites/{{ site.id }}/files?path={{ parent|urlq }}">↑ Up one level</a></td></tr>
+  <tr><td></td><td colspan="5"><a href="/sites/{{ site.id }}/files?path={{ parent|urlq }}">↑ Up one level</a></td></tr>
   {% endif %}
   {% for e in entries %}
   <tr>
+    <td class="check"><input type="checkbox" name="sel" value="{{ e.rel }}" form="fmbulk" data-fm-sel aria-label="Select {{ e.name }}"></td>
     <td>
       {% if e.is_dir %}<a class="strong" href="/sites/{{ site.id }}/files?path={{ e.rel|urlq }}"><span class="ico folder"></span>{{ e.name }}/</a>
       {% elif e.editable %}<a href="/sites/{{ site.id }}/files/edit?path={{ e.rel|urlq }}"><span class="ico file"></span>{{ e.name }}</a>
@@ -56,6 +69,12 @@
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="rename">
         <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}"><input type="hidden" name="name">
         <button class="linkish">Rename</button></form>
+      {% if not e.is_link %}
+      <form method="post" action="/sites/{{ site.id }}/files/op" data-prompt="name" data-prompt-text="Permissions (octal, e.g. 644 or 755)" data-prompt-default="{{ e.mode }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="chmod">
+        <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}"><input type="hidden" name="name">
+        <button class="linkish">Perms</button></form>
+      {% endif %}
       <form method="post" action="/sites/{{ site.id }}/files/op" data-confirm="Delete {{ e.name }}{{ ' and everything inside it' if e.is_dir }}?">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="delete">
         <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}">
@@ -63,7 +82,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="5" class="empty">This folder is empty. Drop files here or use Upload.</td></tr>
+  <tr><td></td><td colspan="5" class="empty">This folder is empty. Drop files here or use Upload.</td></tr>
   {% endfor %}
   </tbody>
 </table>
