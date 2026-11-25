@@ -182,3 +182,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 2500);
   }
 });
+
+
+// File manager: multi-select, select-all, and the bulk action bar (Move/Copy/Compress/Delete)
+document.addEventListener("DOMContentLoaded", () => {
+  const bar = document.querySelector("[data-fm-bar]");
+  if (!bar) return;
+  const boxes = () => Array.from(document.querySelectorAll("[data-fm-sel]"));
+  const countEl = bar.querySelector("[data-fm-count]");
+  const all = document.querySelector("[data-fm-all]");
+  const update = () => {
+    const n = boxes().filter((b) => b.checked).length;
+    bar.hidden = n === 0;
+    if (countEl) countEl.textContent = n + " selected";
+    if (all) all.checked = n > 0 && n === boxes().length;
+  };
+  boxes().forEach((b) => b.addEventListener("change", update));
+  if (all) all.addEventListener("change", () => { boxes().forEach((b) => { b.checked = all.checked; }); update(); });
+  bar.addEventListener("submit", (e) => {
+    const op = e.submitter && e.submitter.value;
+    if (!boxes().some((b) => b.checked)) { e.preventDefault(); alert("Select some files first."); return; }
+    if (e.submitter && e.submitter.hasAttribute("data-confirm") && !confirm("Delete the selected items? This can't be undone.")) { e.preventDefault(); return; }
+    if ((op === "move" || op === "copy") && !bar.querySelector(".fm-to").value.trim()) { e.preventDefault(); alert("Type a destination folder."); }
+  });
+  update();
+});

@@ -154,6 +154,111 @@ def is_archive(name: str) -> bool:
     return name.lower().endswith(ARCHIVE_EXT)
 
 
+def _dest_dir(root: Path, to: str) -> Path:
+    d = safe_path(root, to)
+    if not d.is_dir():
+        raise FileError("The destination isn't a folder that exists")
+    return d
+
+
+def _check_movable(root: Path, src: Path, dest: Path) -> Path:
+    """Shared checks for move/copy of one entry into dest; returns the target path."""
+    if src == root.resolve():
+        raise FileError("Can't move the site folder itself")
+    if relpath(root, src) in PROTECTED:
+        raise FileError(f"'{src.name}' is a required folder and can't be moved")
+    src_r, dest_r = src.resolve(), dest.resolve()
+    if src.is_dir() and (dest_r == src_r or src_r in dest_r.parents):
+        raise FileError(f"Can't put '{src.name}' inside itself")
+    if dest_r == src.parent.resolve():
+        raise FileError(f"'{src.name}' is already in that folder")
+    target = safe_path(root, relpath(root, dest / src.name))
+    if target.exists():
+        raise FileError(f"'{src.name}' already exists in the destination — rename or remove it first")
+    return target
+
+
+def move(root: Path, rels: list, to: str, owner: str) -> int:
+    dest = _dest_dir(root, to)
+    moved = 0
+    for rel in rels:
+        src = safe_path(root, rel)
+        if not src.exists():
+            continue
+        target = _check_movable(root, src, dest)
+        shutil.move(str(src), str(target))
+        moved += 1
+    return moved
+
+
+def copy(root: Path, rels: list, to: str, owner: str) -> int:
+    dest = _dest_dir(root, to)
+    copied = 0
+    for rel in rels:
+        src = safe_path(root, rel)
+        if not src.exists():
+            continue
+        target = _check_movable(root, src, dest)
+        if src.is_dir():
+            shutil.copytree(src, target, symlinks=True)
+        else:
+            shutil.copy2(src, target, follow_symlinks=False)
+        chown_recursive(target, owner)
+        copied += 1
+    return copied
+
+
+def set_mode(root: Path, rel: str, mode: str) -> None:
+    import re
+    if not re.fullmatch(r"[0-7]{3,4}", (mode or "").strip()):
+        raise FileError("Permissions must be 3 or 4 octal digits, like 644 or 755")
+    target = safe_path(root, rel)
+    if target == root.resolve():
+        raise FileError("Can't change the site folder's permissions")
+    if target.is_symlink():
+        raise FileError("Can't change a symlink's permissions")
+    os.chmod(target, int(mode.strip(), 8))
+
+
+def _unique(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem, suffix = path.stem, path.suffix
+    for i in range(1, 1000):
+        cand = path.with_name(f"{stem}-{i}{suffix}")
+        if not cand.exists():
+            return cand
+    raise FileError("Couldn't find a free name for the archive")
+
+
+def compress(root: Path, rels: list, dest_rel: str, owner: str, name: str = "") -> str:
+    """Zip the selected entries into dest_rel (like cPanel's Compress). Returns the archive name."""
+    dest = _dest_dir(root, dest_rel)
+    base = _clean_name(name) if name else "archive.zip"
+    if not base.lower().endswith(".zip"):
+        base += ".zip"
+    target = _unique(safe_path(root, relpath(root, dest / base)))
+    srcs = [safe_path(root, r) for r in rels]
+    srcs = [s for s in srcs if s.exists()]
+    if not srcs:
+        raise FileError("Nothing to compress")
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
+        for src in srcs:
+            if src.is_dir():
+                added = False
+                for f in sorted(src.rglob("*")):
+                    if f.is_symlink() or not f.is_file():
+                        continue
+                    z.write(f, str(f.relative_to(src.parent)))
+                    added = True
+                if not added:
+                    z.writestr(src.name + "/", "")
+            elif src.is_file() and not src.is_symlink():
+                z.write(src, src.name)
+    chown(target, owner)
+    return target.name
+
+
 def extract(root: Path, rel: str, owner: str, max_bytes: int = MAX_EXTRACT_BYTES) -> int:
     """Unpack a .zip or .tar(.gz/.bz2/.xz) into the folder it sits in (like cPanel's Extract).
 
