@@ -46,6 +46,12 @@
     <td class="muted"><code>{{ e.mode }}</code></td>
     <td class="actions">
       {% if not e.is_dir %}<a class="linkish" href="/sites/{{ site.id }}/files/download?path={{ e.rel|urlq }}">Download</a>{% endif %}
+      {% if e.is_archive %}
+      <form method="post" action="/sites/{{ site.id }}/files/op" data-confirm="Extract {{ e.name }} into this folder?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="extract">
+        <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}">
+        <button class="linkish">Extract</button></form>
+      {% endif %}
       <form method="post" action="/sites/{{ site.id }}/files/op" data-prompt="name" data-prompt-text="Rename to" data-prompt-default="{{ e.name }}">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="op" value="rename">
         <input type="hidden" name="dir" value="{{ rel }}"><input type="hidden" name="target" value="{{ e.rel }}"><input type="hidden" name="name">

@@ -47,6 +47,9 @@ HARBOR_DRY_RUN=1 python -m harbor create-admin admin --password 'long-password-h
 HARBOR_DRY_RUN=1 HARBOR_COOKIE_SECURE=0 python -m harbor serve --port 8090
 ```
 
+- File manager (`system/files.py`): `extract` unpacks zip/tar archives in place, confined inside the site root
+  (no `..`, absolute paths or symlink escape), with file-count and uncompressed-size caps against zip bombs.
+
 ## Releases
 
 Bump `__version__` in `harbor/__init__.py` and merge to `main`: `.github/workflows/release.yml` runs the tests,

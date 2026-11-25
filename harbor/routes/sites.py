@@ -243,6 +243,11 @@ async def file_op(request: Request, site_id: int):
         elif op == "delete":
             fm.delete(root, form.get("target", ""))
             flash(request, "Deleted.")
+        elif op == "extract":
+            if svc.over_disk_allowance(site):
+                raise OpError("This site is over its disk allowance. Delete some files or ask an admin to raise it.")
+            n = fm.extract(root, form.get("target", ""), site["sysuser"])
+            flash(request, f"Extracted {n} file(s).")
         else:
             raise ValueError("Unknown action")
     return back(files_url(site_id, rel))
