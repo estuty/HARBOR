@@ -45,6 +45,12 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
   (`mysql.set_remote_listening`, tracked by the `mysql_remote` setting); it reverts when the last host is removed.
   `delete_database`/`delete_site` call `remote_mysql.cleanup_database` first. Host firewall/port 3306 is the admin's
   responsibility (Harbor has no host firewall, only nginx/fail2ban).
+- Custom TLS certificates (`system/ssl.py`, Overview HTTPS card): besides Let's Encrypt, a site can use an uploaded
+  cert. `ssl.install_custom` validates the cert/key pair with openssl and writes `fullchain.pem`/`privkey.pem` under
+  `NGINX_HARBOR/certs/<domain>`; the per-site setting `cert = "custom"` makes `vhost_spec` set `VhostSpec.cert_dir`
+  there instead of the Let's Encrypt path. `sites.cert_status` reads the active cert's issuer/expiry/SANs
+  (`ssl.info`, parsed by the testable `_parse_cert_text`) for the card. `enable_ssl` clears the custom flag (back to
+  LE); `remove_custom_cert` deletes the files and turns HTTPS off.
 
 ## Tests
 

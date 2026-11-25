@@ -6,7 +6,7 @@ applies, and restores the previous database state if applying fails."""
 import logging
 
 from .. import config, db
-from ..system import nginx, phpfpm, users
+from ..system import nginx, phpfpm, ssl, users
 from ..system.runner import CommandError
 
 log = logging.getLogger("harbor")
@@ -60,6 +60,7 @@ def vhost_spec(site) -> nginx.VhostSpec:
         modsec_file=modsec_file(site) if config.features()["modsec"] and modsec.get("mode", "off") != "off" else None,
         max_body_mb=body_mb + 1,
         aliases=[dict(a) for a in db.all("SELECT domain, redirect FROM site_aliases WHERE site_id = ?", site["id"])],
+        cert_dir=ssl.cert_dir(site["domain"], True) if st.get("cert") == "custom" else None,
     )
 
 

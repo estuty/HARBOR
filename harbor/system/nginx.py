@@ -29,6 +29,7 @@ class VhostSpec:
     modsec_file: str | None = None
     max_body_mb: int = 64
     aliases: list = field(default_factory=list)  # {domain, redirect}: extra domains serving/redirecting to this site
+    cert_dir: str | None = None                  # holds fullchain.pem/privkey.pem; defaults to the Let's Encrypt path
 
 
 def _alias_names(s: "VhostSpec") -> list[str]:
@@ -194,6 +195,7 @@ def render(s: VhostSpec) -> str:
     v6_80 = "    listen [::]:80;\n" if config.IPV6 else ""
     v6_443 = "    listen [::]:443 ssl http2;\n" if config.IPV6 else ""
     extra = _alias_redirect_blocks(s, v6_80, v6_443)
+    certdir = s.cert_dir or f"{config.LE_LIVE}/{s.domain}"
     if not s.ssl:
         return head + (
             f"server {{\n    listen 80;\n{v6_80}"
@@ -205,8 +207,8 @@ def render(s: VhostSpec) -> str:
         "    location / { return 301 https://$host$request_uri; }\n}\n\n"
         f"server {{\n    listen 443 ssl http2;\n{v6_443}"
         f"    server_name {names};\n"
-        f"    ssl_certificate {config.LE_LIVE}/{s.domain}/fullchain.pem;\n"
-        f"    ssl_certificate_key {config.LE_LIVE}/{s.domain}/privkey.pem;\n"
+        f"    ssl_certificate {certdir}/fullchain.pem;\n"
+        f"    ssl_certificate_key {certdir}/privkey.pem;\n"
         "    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_prefer_server_ciphers off;\n"
         "    ssl_session_cache shared:harbor_ssl:10m;\n"
         '    add_header Strict-Transport-Security "max-age=31536000" always;\n'

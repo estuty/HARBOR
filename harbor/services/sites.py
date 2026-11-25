@@ -88,12 +88,65 @@ def enable_ssl(site_id: int, actor: str) -> None:
             raise OpError(f"Let's Encrypt rate limit reached for {site['domain']}; try again later. {msg}")
         raise OpError(f"Certificate request failed. Check that DNS for {site['domain']} points to this server. {msg}")
     db.execute("UPDATE sites SET ssl = 1 WHERE id = ?", site_id)
+    st = db.site_settings(site)
+    st.pop("cert", None)  # back to the Let's Encrypt certificate
+    db.save_site_settings(site_id, st)
     try:
         apply_vhost(site_id)
     except CommandError as e:
         db.execute("UPDATE sites SET ssl = 0 WHERE id = ?", site_id)
         raise OpError(str(e))
     db.log(f"{site['domain']}: HTTPS enabled", actor)
+
+
+def install_custom_cert(site_id: int, cert: str, key: str, chain: str, actor: str) -> None:
+    site = get_site(site_id)
+    try:
+        ssl.install_custom(site["domain"], cert, key, chain)
+    except ssl.CertError as e:
+        raise OpError(str(e))
+    before_ssl, before = site["ssl"], db.site_settings(site)
+    after = db.site_settings(site)
+    after["cert"] = "custom"
+    db.save_site_settings(site_id, after)
+    db.execute("UPDATE sites SET ssl = 1 WHERE id = ?", site_id)
+    try:
+        apply_vhost(site_id)
+    except CommandError as e:
+        db.save_site_settings(site_id, before)
+        db.execute("UPDATE sites SET ssl = ? WHERE id = ?", before_ssl, site_id)
+        ssl.remove_custom(site["domain"])
+        raise OpError(f"nginx rejected the certificate, nothing was changed. ({e})")
+    db.log(f"{site['domain']}: uploaded certificate installed", actor)
+
+
+def remove_custom_cert(site_id: int, actor: str) -> None:
+    """Remove the uploaded certificate and turn HTTPS off (re-enable for a free Let's Encrypt cert)."""
+    site = get_site(site_id)
+    st = db.site_settings(site)
+    st.pop("cert", None)
+    db.save_site_settings(site_id, st)
+    db.execute("UPDATE sites SET ssl = 0 WHERE id = ?", site_id)
+    apply_vhost(site_id)
+    ssl.remove_custom(site["domain"])
+    db.log(f"{site['domain']}: uploaded certificate removed, HTTPS turned off", actor)
+
+
+def cert_status(site) -> dict | None:
+    """Source and details of the active certificate for the overview page, or None when HTTPS is off."""
+    if not site["ssl"]:
+        return None
+    custom = db.site_settings(site).get("cert") == "custom"
+    detail = ssl.info(site["domain"], custom)
+    days_left = None
+    if detail and detail.get("not_after"):
+        from datetime import datetime, timezone
+        try:
+            exp = datetime.strptime(detail["not_after"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            days_left = (exp - datetime.now(timezone.utc)).days
+        except ValueError:
+            pass
+    return {"source": "custom" if custom else "letsencrypt", "detail": detail, "days_left": days_left}
 
 
 def disable_ssl(site_id: int, actor: str) -> None:
@@ -132,6 +185,7 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
     attempt(lambda: cron.sync(site["sysuser"], []))
     if site["ssl"]:
         attempt(lambda: ssl.delete(site["domain"]))
+    attempt(lambda: ssl.remove_custom(site["domain"]))
     attempt(lambda: security.cleanup_site(site))
     attempt(lambda: mail.disable_domain(site_id, actor, remove_mail=remove_files))
     if drop_dbs:

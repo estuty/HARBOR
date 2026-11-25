@@ -59,6 +59,7 @@ async def site_overview(request: Request, site_id: int):
                   db_count=db.one("SELECT COUNT(*) c FROM databases WHERE site_id = ?", site_id)["c"],
                   cron_count=db.one("SELECT COUNT(*) c FROM cron_jobs WHERE site_id = ?", site_id)["c"],
                   apps=db.all("SELECT * FROM app_installs WHERE site_id = ?", site_id),
+                  cert=svc.cert_status(site),
                   host=request.url.hostname)
 
 
@@ -73,9 +74,12 @@ def _simple(path: str, fn, ok: str, to: str = ""):
 
 
 _simple("php", lambda i, f, a: svc.change_php(i, f.get("php_version", ""), a), "PHP version updated.", "/sites/{id}/php")
-_simple("www", lambda i, f, a: svc.set_www(i, f.get("include_www") == "1", a), "Domain aliases updated.")
+_simple("www", lambda i, f, a: svc.set_www(i, f.get("include_www") == "1", a), "www setting saved.")
 _simple("ssl/enable", lambda i, f, a: svc.enable_ssl(i, a), "HTTPS is on. Certificates renew automatically.")
 _simple("ssl/disable", lambda i, f, a: svc.disable_ssl(i, a), "HTTPS turned off.")
+_simple("ssl/custom", lambda i, f, a: svc.install_custom_cert(
+    i, f.get("cert", ""), f.get("key", ""), f.get("chain", ""), a), "Certificate installed.")
+_simple("ssl/custom/remove", lambda i, f, a: svc.remove_custom_cert(i, a), "Uploaded certificate removed.")
 _simple("sftp/disable", lambda i, f, a: svc.set_sftp(i, None, a), "SFTP access disabled.")
 _simple("limits", lambda i, f, a: svc.set_limits(i, f, a), "Limits applied. PHP for this site restarted with them.")
 _simple("cron", lambda i, f, a: svc.add_cron(i, f.get("schedule", ""), f.get("command", ""), a),
