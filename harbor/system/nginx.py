@@ -166,8 +166,98 @@ def render(s: VhostSpec) -> str:
         f"{_body(s)}\n}}\n")
 
 
+@dataclass
+class SubdomainSpec:
+    fqdn: str
+    ssl: bool
+    root: Path                 # absolute document root (served as-is, no /public appended)
+    sock: str                  # the parent site's PHP-FPM socket
+    logs: Path                 # the parent site's logs directory
+    max_body_mb: int = 64
+
+
+def _sub_body(s: SubdomainSpec) -> str:
+    return "\n".join([
+        f"    root {s.root};",
+        "    disable_symlinks if_not_owner from=$document_root;",
+        "    index index.php index.html index.htm;",
+        f"    client_max_body_size {s.max_body_mb}M;",
+        f"    access_log {s.logs}/access.log;",
+        f"    error_log {s.logs}/error.log;",
+        "",
+        "    location /.well-known/acme-challenge/ { allow all; auth_basic off; }",
+        "    location ~ /\\.(?!well-known) { deny all; }",
+        "",
+        "    location / {",
+        "        try_files $uri $uri/ /index.php?$args;",
+        "    }",
+        "",
+        _php_block(s.sock, "    "),
+        "",
+        f"    location ~* \\.({STATIC_EXT})$ {{",
+        "        expires 30d;",
+        "        access_log off;",
+        "        try_files $uri =404;",
+        "    }",
+    ])
+
+
+def render_subdomain(s: SubdomainSpec) -> str:
+    head = "# Managed by Harbor - manual edits will be overwritten\n"
+    v6_80 = "    listen [::]:80;\n" if config.IPV6 else ""
+    v6_443 = "    listen [::]:443 ssl http2;\n" if config.IPV6 else ""
+    if not s.ssl:
+        return head + (
+            f"server {{\n    listen 80;\n{v6_80}"
+            f"    server_name {s.fqdn};\n{_sub_body(s)}\n}}\n")
+    return head + (
+        f"server {{\n    listen 80;\n{v6_80}"
+        f"    server_name {s.fqdn};\n"
+        f"    location /.well-known/acme-challenge/ {{ root {s.root}; }}\n"
+        "    location / { return 301 https://$host$request_uri; }\n}\n\n"
+        f"server {{\n    listen 443 ssl http2;\n{v6_443}"
+        f"    server_name {s.fqdn};\n"
+        f"    ssl_certificate {config.LE_LIVE}/{s.fqdn}/fullchain.pem;\n"
+        f"    ssl_certificate_key {config.LE_LIVE}/{s.fqdn}/privkey.pem;\n"
+        "    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_prefer_server_ciphers off;\n"
+        "    ssl_session_cache shared:harbor_ssl:10m;\n"
+        '    add_header Strict-Transport-Security "max-age=31536000" always;\n'
+        f"{_sub_body(s)}\n}}\n")
+
+
 def conf_name(domain: str) -> str:
     return f"harbor-{domain}.conf"
+
+
+def sub_conf_name(fqdn: str) -> str:
+    return f"harbor-sub-{fqdn}.conf"
+
+
+def write_subdomain(spec: SubdomainSpec) -> None:
+    config.NGINX_AVAILABLE.mkdir(parents=True, exist_ok=True)
+    config.NGINX_ENABLED.mkdir(parents=True, exist_ok=True)
+    avail = config.NGINX_AVAILABLE / sub_conf_name(spec.fqdn)
+    enabled = config.NGINX_ENABLED / sub_conf_name(spec.fqdn)
+    previous = avail.read_text() if avail.exists() else None
+
+    avail.write_text(render_subdomain(spec))
+    if not enabled.is_symlink() and not enabled.exists():
+        enabled.symlink_to(avail)
+    try:
+        test_and_reload()
+    except CommandError:
+        if previous is None:
+            enabled.unlink(missing_ok=True)
+            avail.unlink(missing_ok=True)
+        else:
+            avail.write_text(previous)
+        raise
+
+
+def remove_subdomain(fqdn: str) -> None:
+    (config.NGINX_ENABLED / sub_conf_name(fqdn)).unlink(missing_ok=True)
+    (config.NGINX_AVAILABLE / sub_conf_name(fqdn)).unlink(missing_ok=True)
+    test_and_reload()
 
 
 def test_and_reload() -> None:

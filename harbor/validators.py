@@ -46,6 +46,19 @@ def is_full_hostname(value: str) -> bool:
     return bool(DOMAIN_RE.match((value or "").strip().lower().rstrip(".")))
 
 
+SUBLABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))*$")
+
+
+def subdomain_label(value: str) -> str:
+    """A sub-name under an existing site, like blog or dev.api (no leading www or *)."""
+    v = (value or "").strip().lower().rstrip(".")
+    if v.startswith("www."):
+        v = v[4:]
+    if v in ("", "www") or not SUBLABEL_RE.match(v) or len(v) > 100:
+        raise ValidationError("Sub-name: a label like blog or shop (letters, digits and -)")
+    return v
+
+
 def db_suffix(value: str) -> str:
     v = (value or "").strip().lower()
     if not DB_SUFFIX_RE.match(v):

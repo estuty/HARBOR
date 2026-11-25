@@ -28,6 +28,11 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
 - `services/usage.py` + `/usage` show resource use per domain (disk via `du`, live memory/CPU/workers from each
   site's PHP-FPM systemd unit, database size from information_schema); disk is cached briefly.
 - Generated configs are tested (`nginx -t`, `php-fpm -t`, `named-checkzone`, `postmap`) and rolled back on failure.
+- Subdomains (`services/subdomains.py`, `routes/domains.py`, `subdomains` table): each has its own document root
+  under the parent site and its own nginx vhost (`nginx.render_subdomain`, confs named `harbor-sub-<fqdn>.conf`),
+  but shares the parent's PHP-FPM pool, socket and system user. Creating one makes the docroot (owned by the site
+  user) and, when Harbor manages the parent's DNS, adds a `managed='sub'` A record; `delete_site` calls
+  `subdomains.cleanup_site` to drop the vhosts and certs. SSL is per-subdomain (own Let's Encrypt cert).
 
 ## Tests
 

@@ -115,7 +115,7 @@ def set_sftp(site_id: int, password: str | None, actor: str) -> None:
 
 
 def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) -> None:
-    from . import dns, mail, security
+    from . import dns, mail, security, subdomains
     site = get_site(site_id)
     errors = []
 
@@ -125,6 +125,7 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
         except Exception as e:
             errors.append(str(e))
 
+    attempt(lambda: subdomains.cleanup_site(site))
     attempt(lambda: nginx.remove(site["domain"]))
     attempt(lambda: phpfpm.remove_pool(site["sysuser"]))
     attempt(lambda: cron.sync(site["sysuser"], []))
