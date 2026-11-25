@@ -198,6 +198,13 @@ MIGRATIONS = [
         ssl INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (site_id, label));
     """,
+    # 14: domain aliases - a second domain that serves (or redirects to) an existing site
+    """
+    CREATE TABLE site_aliases (
+        id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        domain TEXT UNIQUE NOT NULL, redirect INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+    """,
 ]
 
 

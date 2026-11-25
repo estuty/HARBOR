@@ -2,7 +2,7 @@
 from .. import config, db, validators
 from ..system import cron, mysql, nginx, phpfpm, ssl, users
 from ..system.runner import CommandError
-from . import OpError, apply_pool, apply_vhost, get_site, log, site_root, vhost_spec
+from . import OpError, apply_pool, apply_vhost, cert_extra_domains, get_site, log, site_root, vhost_spec
 
 
 # ---------- sites ----------
@@ -65,7 +65,7 @@ def set_www(site_id: int, include_www: bool, actor: str) -> None:
     db.execute("UPDATE sites SET include_www = ? WHERE id = ?", int(include_www), site_id)
     try:
         if site["ssl"]:
-            ssl.issue(site["domain"], include_www, str(site_root(site) / "public"))
+            ssl.issue(site["domain"], include_www, str(site_root(site) / "public"), extra=cert_extra_domains(site))
         apply_vhost(site_id)
     except CommandError as e:
         db.execute("UPDATE sites SET include_www = ? WHERE id = ?", site["include_www"], site_id)
@@ -76,7 +76,8 @@ def set_www(site_id: int, include_www: bool, actor: str) -> None:
 def enable_ssl(site_id: int, actor: str) -> None:
     site = get_site(site_id)
     try:
-        ssl.issue(site["domain"], bool(site["include_www"]), str(site_root(site) / "public"))
+        ssl.issue(site["domain"], bool(site["include_www"]), str(site_root(site) / "public"),
+                  extra=cert_extra_domains(site))
     except CommandError as e:
         msg = str(e)
         if "invalid email" in msg or "Unable to register an account" in msg:
@@ -141,10 +142,11 @@ def delete_site(site_id: int, remove_files: bool, drop_dbs: bool, actor: str) ->
     from . import malware
     attempt(lambda: malware.forget_site(site_id))
     users.delete(site["sysuser"], site["domain"], remove_files)
-    zone = db.one("SELECT id FROM dns_zones WHERE site_id = ?", site_id)
+    zones = db.all("SELECT id FROM dns_zones WHERE site_id = ?", site_id)  # the site's own zone and any alias zones
     db.execute("DELETE FROM sites WHERE id = ?", site_id)
-    if zone and remove_files:
-        attempt(lambda: dns.delete_zone(zone["id"], actor))
+    if remove_files:
+        for z in zones:
+            attempt(lambda z=z: dns.delete_zone(z["id"], actor))
     db.log(f"Deleted site {site['domain']}" + (f" (warnings: {'; '.join(errors)})" if errors else ""),
            actor, "warn" if errors else "info")
 

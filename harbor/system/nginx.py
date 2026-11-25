@@ -28,6 +28,24 @@ class VhostSpec:
     hotlink: dict | None = None                  # {"exts": [...], "allowed": [...]}
     modsec_file: str | None = None
     max_body_mb: int = 64
+    aliases: list = field(default_factory=list)  # {domain, redirect}: extra domains serving/redirecting to this site
+
+
+def _alias_names(s: "VhostSpec") -> list[str]:
+    """Alias domains that serve the same content (plus their www), for server_name."""
+    out = []
+    for a in s.aliases:
+        if not a.get("redirect"):
+            out += [a["domain"], f"www.{a['domain']}"]
+    return out
+
+
+def cert_domains(domain: str, include_www: bool, aliases: list) -> list[str]:
+    """Every name that belongs on this site's certificate: the domain, its www, and each alias (+ www)."""
+    names = [domain] + ([f"www.{domain}"] if include_www else [])
+    for a in aliases:
+        names += [a["domain"], f"www.{a['domain']}"]
+    return names
 
 
 def _php_block(sock: str, indent: str) -> str:
@@ -142,15 +160,44 @@ def _body(s: VhostSpec) -> str:
     return "\n".join(out)
 
 
+def _alias_redirect_blocks(s: VhostSpec, v6_80: str, v6_443: str) -> str:
+    """A small server block per redirecting alias, sending it to the main domain (301)."""
+    out = ""
+    for a in s.aliases:
+        if not a.get("redirect"):
+            continue
+        names = f"{a['domain']} www.{a['domain']}"
+        if s.ssl:
+            out += (
+                f"\nserver {{\n    listen 80;\n{v6_80}"
+                f"    server_name {names};\n"
+                f"    location /.well-known/acme-challenge/ {{ root {s.root}/public; }}\n"
+                f"    location / {{ return 301 https://{s.domain}$request_uri; }}\n}}\n"
+                f"\nserver {{\n    listen 443 ssl http2;\n{v6_443}"
+                f"    server_name {names};\n"
+                f"    ssl_certificate {config.LE_LIVE}/{s.domain}/fullchain.pem;\n"
+                f"    ssl_certificate_key {config.LE_LIVE}/{s.domain}/privkey.pem;\n"
+                "    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_prefer_server_ciphers off;\n"
+                f"    location / {{ return 301 https://{s.domain}$request_uri; }}\n}}\n")
+        else:
+            out += (
+                f"\nserver {{\n    listen 80;\n{v6_80}"
+                f"    server_name {names};\n"
+                f"    location /.well-known/acme-challenge/ {{ root {s.root}/public; }}\n"
+                f"    location / {{ return 301 http://{s.domain}$request_uri; }}\n}}\n")
+    return out
+
+
 def render(s: VhostSpec) -> str:
-    names = s.domain + (f" www.{s.domain}" if s.include_www else "")
+    names = " ".join([s.domain] + ([f"www.{s.domain}"] if s.include_www else []) + _alias_names(s))
     head = "# Managed by Harbor - manual edits will be overwritten\n"
     v6_80 = "    listen [::]:80;\n" if config.IPV6 else ""
     v6_443 = "    listen [::]:443 ssl http2;\n" if config.IPV6 else ""
+    extra = _alias_redirect_blocks(s, v6_80, v6_443)
     if not s.ssl:
         return head + (
             f"server {{\n    listen 80;\n{v6_80}"
-            f"    server_name {names};\n{_body(s)}\n}}\n")
+            f"    server_name {names};\n{_body(s)}\n}}\n") + extra
     return head + (
         f"server {{\n    listen 80;\n{v6_80}"
         f"    server_name {names};\n"
@@ -163,7 +210,7 @@ def render(s: VhostSpec) -> str:
         "    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_prefer_server_ciphers off;\n"
         "    ssl_session_cache shared:harbor_ssl:10m;\n"
         '    add_header Strict-Transport-Security "max-age=31536000" always;\n'
-        f"{_body(s)}\n}}\n")
+        f"{_body(s)}\n}}\n") + extra
 
 
 @dataclass

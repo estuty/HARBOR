@@ -33,6 +33,11 @@ on 127.0.0.1:8090 behind nginx TLS on port 8443. The marketing website lives in 
   but shares the parent's PHP-FPM pool, socket and system user. Creating one makes the docroot (owned by the site
   user) and, when Harbor manages the parent's DNS, adds a `managed='sub'` A record; `delete_site` calls
   `subdomains.cleanup_site` to drop the vhosts and certs. SSL is per-subdomain (own Let's Encrypt cert).
+- Domain aliases (`services/aliases.py`, `site_aliases` table): a second domain that serves the same site
+  (extra `server_name` on the site's own vhost) or redirects to it (its own 301 server block). Alias names ride on
+  the site's certificate — `cert_extra_domains(site)` feeds `ssl.issue(..., extra=...)`, and `enable_ssl`/`set_www`
+  reissue to include them. A DNS zone pointing here is auto-created for the alias when Harbor manages DNS; a site can
+  own several zones now, so `delete_site` drops them all. Subdomains and aliases share one **Domains** tab.
 
 ## Tests
 
